@@ -37,36 +37,80 @@ namespace Packages.rapier4unity.Runtime
     
     public class RapierBindings
     {
+        #if UNITY_STANDALONE_OSX
         [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
+        #else
+        [DllImport("rapier_c_bind", CallingConvention = CallingConvention.Cdecl)]
+        #endif
         public static extern void init();
+#if UNITY_STANDALONE_OSX
         [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
+#else
+        [DllImport("rapier_c_bind", CallingConvention = CallingConvention.Cdecl)]
+#endif
         public static extern void teardown();
         
+#if UNITY_STANDALONE_OSX
         [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
+#else
+        [DllImport("rapier_c_bind", CallingConvention = CallingConvention.Cdecl)]
+#endif
         public static extern unsafe RawArray<CollisionEvent>* solve();
         
+#if UNITY_STANDALONE_OSX
         [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
+#else
+        [DllImport("rapier_c_bind", CallingConvention = CallingConvention.Cdecl)]
+#endif
         public static extern unsafe void free_collision_events(RawArray<CollisionEvent>* events);
         
+#if UNITY_STANDALONE_OSX
         [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
+#else
+        [DllImport("rapier_c_bind", CallingConvention = CallingConvention.Cdecl)]
+#endif
         public static extern void set_gravity(float x, float y, float z);
         
+#if UNITY_STANDALONE_OSX
         [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
+#else
+        [DllImport("rapier_c_bind", CallingConvention = CallingConvention.Cdecl)]
+#endif
         public static extern void set_time_step(float x);
         
+#if UNITY_STANDALONE_OSX
         [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
+#else
+        [DllImport("rapier_c_bind", CallingConvention = CallingConvention.Cdecl)]
+#endif
         public static extern ColliderHandle add_cuboid_collider(float half_extents_x, float half_extents_y, float half_extents_z, float mass, bool is_sensor);
         
+#if UNITY_STANDALONE_OSX
         [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
+#else
+        [DllImport("rapier_c_bind", CallingConvention = CallingConvention.Cdecl)]
+#endif
         public static extern ColliderHandle add_sphere_collider(float radius, float mass, bool is_sensor);
         
+#if UNITY_STANDALONE_OSX
         [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
+#else
+        [DllImport("rapier_c_bind", CallingConvention = CallingConvention.Cdecl)]
+#endif
         public static extern RigidBodyHandle add_rigid_body(ColliderHandle collider, RigidBodyType rigidBodyType, float position_x, float position_y, float position_z);
         
+#if UNITY_STANDALONE_OSX
         [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
+#else
+        [DllImport("rapier_c_bind", CallingConvention = CallingConvention.Cdecl)]
+#endif
         public static extern RapierPosition get_position(RigidBodyHandle rigidBodyHandle);
 
+#if UNITY_STANDALONE_OSX
         [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
+#else
+        [DllImport("rapier_c_bind", CallingConvention = CallingConvention.Cdecl)]
+#endif
         public static extern void add_force(RigidBodyHandle handle, float forceX, float forceY, float forceZ, ForceMode mode);
 
         public struct RapierRaycastHit
@@ -90,7 +134,11 @@ namespace Packages.rapier4unity.Runtime
             }
         }
         
+#if UNITY_STANDALONE_OSX
         [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
+#else
+        [DllImport("rapier_c_bind", CallingConvention = CallingConvention.Cdecl)]
+#endif
         public static extern unsafe bool cast_ray(float from_x, float from_y, float from_z, float dir_x, float dir_y, float dir_z, RapierRaycastHit* out_hit);
     }
     
