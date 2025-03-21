@@ -11,7 +11,7 @@ using Unity.Rapier4Unity.CodeGen;
 public class Patch : ILPostProcessor {
     public static void OutputDebugString(string message)
     {
-        File.AppendAllText("/Users/daniel.andersen/dev/personal/Multiformer/Temp/rapier4unity.log", message + "\n");
+        File.AppendAllText("./Temp/rapier4unity.log", message + "\n");
     }
 
     public override ILPostProcessor GetInstance() {
