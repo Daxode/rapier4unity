@@ -105,6 +105,18 @@ public class PhysicsPostProcessor
 
                             anythingChanged = true;
                         }
+                    } else if (instruction.OpCode == OpCodes.Call) {
+                        if (instruction.Operand is not MethodReference methodReference)
+                            continue;
+                        
+                        if (methodReference.DeclaringType.FullName == "UnityEngine.Physics" && methodReference.Name == "Raycast")
+                        {
+                            var raycast = typeof(RapierLoop).GetMethod("Raycast", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic | BindingFlags.Public);
+                            var newMethodReference = m_AssemblyMainModule.ImportReference(raycast);
+                            Patch.OutputDebugString($"Method: {GetMethodSignature(methodReference)} -> {GetMethodSignature(newMethodReference)}");
+                            instruction.Operand = newMethodReference;
+                            anythingChanged = true;
+                        }
                     }
                 }
             }

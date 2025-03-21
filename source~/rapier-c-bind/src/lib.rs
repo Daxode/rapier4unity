@@ -179,6 +179,9 @@ extern "C" fn cast_ray(from_x:f32, from_y:f32, from_z:f32, dir_x:f32, dir_y:f32,
             m_UV: uv,
             m_Collider: handle.into(),
         };
+        unsafe {
+            *out_hit = hit;
+        }
         true
     } else {
         false
