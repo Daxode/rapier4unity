@@ -4,7 +4,8 @@ mod UnityInterfaceBridge;
 use std::collections::HashSet;
 use std::mem;
 use rapier3d::crossbeam;
-use rapier3d::na::Vector4;
+use rapier3d::na::{Vector2, Vector3, Vector4};
+use rapier3d::parry::partitioning::IndexedData;
 use rapier3d::prelude::*;
 use crate::handles::{SerializableColliderHandle, SerializableRigidBodyHandle, SerializableRigidBodyType};
 
@@ -82,14 +83,14 @@ extern "C" fn set_time_step(dt:f32) {
 #[unsafe(no_mangle)]
 extern "C" fn add_cuboid_collider(half_extents_x:f32, half_extents_y:f32, half_extents_z:f32, mass:f32, is_sensor:bool) -> SerializableColliderHandle {
     let psd = get_mutable_physics_solver();
-    let collider = ColliderBuilder::cuboid(half_extents_x, half_extents_y, half_extents_z).density(mass).sensor(is_sensor).build();
+    let collider = ColliderBuilder::cuboid(half_extents_x, half_extents_y, half_extents_z).active_events(ActiveEvents::COLLISION_EVENTS).density(mass).sensor(is_sensor).build();
     psd.collider_set.insert(collider).into()
 }
 
 #[unsafe(no_mangle)]
-extern "C" fn add_sphere_collider(radius:f32, mass:f32) -> SerializableColliderHandle {
+extern "C" fn add_sphere_collider(radius:f32, mass:f32, is_sensor:bool) -> SerializableColliderHandle {
     let psd = get_mutable_physics_solver();
-    let collider = ColliderBuilder::ball(radius).density(mass).active_events(ActiveEvents::COLLISION_EVENTS|ActiveEvents::CONTACT_FORCE_EVENTS).build();
+    let collider = ColliderBuilder::ball(radius).density(mass).active_events(ActiveEvents::COLLISION_EVENTS).sensor(is_sensor).build();
     psd.collider_set.insert(collider).into()
 }
 
@@ -142,6 +143,47 @@ extern "C" fn add_force(rb_handle: SerializableRigidBodyHandle, force_x:f32, for
     rb.set_linvel(linvel, true);
 }
 
+// Scene Query
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+struct RaycastHit
+{
+    m_Point: Vector3<f32>,
+    m_Normal: Vector3<f32>,
+    m_FaceID: u32,
+    m_Distance: f32,
+    m_UV: Vector2<f32>,
+    m_Collider: SerializableColliderHandle,
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn cast_ray(from_x:f32, from_y:f32, from_z:f32, dir_x:f32, dir_y:f32, dir_z:f32, out_hit: *mut RaycastHit) -> bool {
+    let psd = get_mutable_physics_solver();
+    let ray = Ray::new(point![from_x, from_y, from_z], vector![dir_x, dir_y, dir_z]);
+    if let Some((handle, intersection)) = psd.query_pipeline.cast_ray_and_get_normal(&psd.rigid_body_set, &psd.collider_set, &ray, 4.0, true, QueryFilter::default()) {
+        let point = ray.point_at(intersection.time_of_impact);
+        let normal = intersection.normal;
+        let face_id = match intersection.feature {
+            FeatureId::Face(id) => id,
+            FeatureId::Vertex(id) => id,
+            FeatureId::Edge(id) => id,
+            _ => 0,
+        };
+        let distance = intersection.time_of_impact;
+        let uv = vector![0.0, 0.0];
+        let hit = RaycastHit{
+            m_Point: point.coords,
+            m_Normal: normal,
+            m_FaceID: face_id,
+            m_Distance: distance,
+            m_UV: uv,
+            m_Collider: handle.into(),
+        };
+        true
+    } else {
+        false
+    }
+}
 
 
 #[repr(C)]
@@ -214,7 +256,7 @@ struct SerializableCollisionEvent {
 }
 
 impl PhysicsSolverData<'_> {
-    pub fn solve(&mut self) -> Vec<SerializableCollisionEvent> {
+    fn solve(&mut self) -> Vec<SerializableCollisionEvent> {
         let (collision_send, collision_recv) = crossbeam::channel::unbounded();
         let (contact_force_send, contact_force_recv) = crossbeam::channel::unbounded();
         let event_handler = ChannelEventCollector::new(collision_send, contact_force_send);

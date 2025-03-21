@@ -2,98 +2,9 @@ using System.Runtime.InteropServices;
 using Unity.Mathematics;
 using UnityEngine;
 using System;
-using System.IO;
-using Unity.Burst;
-using UnityEditor;
 
 namespace Packages.rapier4unity.Runtime
 {
-    
-#if !UNITY_EDITOR_OSX
-    // Ensure DLL is only loaded in playmode
-    [InitializeOnLoad]
-    static class odecs_initializer {
-        static odecs_initializer() {
-            EditorApplication.playModeStateChanged += state => {
-                if (state == PlayModeStateChange.EnteredPlayMode)
-                    odecs_calls.load_calls();
-                if (state == PlayModeStateChange.ExitingPlayMode)
-                    odecs_calls.unload_calls();
-            };
-        }
-    }
-
-    [BurstCompile]
-    unsafe static class odecs_calls {
-
-        // C# -> Odin
-        struct UnmanagedData {
-            IntPtr loaded_lib;
-            public void load_calls() {
-                if (loaded_lib==IntPtr.Zero)
-                    loaded_lib = win32.LoadLibrary(Path.GetFullPath("Packages/rapier4unity/build_bin/librapier_c_bind.dylib")); // TODO: this won't work for builds and Unity Package Manager location
-                init = win32.GetProcAddress(loaded_lib, "init");
-                // Rotate =  win32.GetProcAddress(loaded_lib, "Rotate");
-            }
-
-            public void unload_calls() {
-                if (loaded_lib != IntPtr.Zero)
-                    win32.FreeLibrary(loaded_lib);
-                loaded_lib = IntPtr.Zero;
-            }
-
-            public IntPtr init;
-            public IntPtr Rotate;
-            public FunctionsToCallFromOdin functionsToCallFromOdin;
-            public bool IsLoaded => loaded_lib != IntPtr.Zero;
-        }
-
-        // public static delegate* unmanaged[Cdecl]<ref SystemState, ref EntityQuery, void*, void*, void> Rotate 
-        //     => (delegate* unmanaged[Cdecl]<ref SystemState, ref EntityQuery, void*, void*, void>) data.Data.Rotate;
-
-        public static bool IsAvailable => data.Data.IsLoaded;
-
-        public static void load_calls() 
-        {
-            data.Data.load_calls();
-            init_rapier4unity();
-        }
-        [BurstCompile]
-        static void init_rapier4unity(){
-            data.Data.functionsToCallFromOdin.Init();
-            var init = (delegate* unmanaged[Cdecl]<ref FunctionsToCallFromOdin, void>) data.Data.init;
-            init(ref data.Data.functionsToCallFromOdin);
-        }
-        public static void unload_calls() => data.Data.unload_calls();
-
-        struct SpecialKey {}
-        static readonly SharedStatic<UnmanagedData> data = SharedStatic<UnmanagedData>.GetOrCreate<SpecialKey>();
-
-        // Odin -> C#
-        [BurstCompile]
-        struct FunctionsToCallFromOdin {
-            // IntPtr odecsContext;
-
-            public void Init() {
-                // odecsContext = Daxode.UnityInterfaceBridge.OdecsUnityBridge.GetDefaultOdecsContext();
-            }
-        }
-    }
-
-
-    // Kernel loading functions
-    static class win32 {
-        [DllImport("kernel32")]
-        public static extern IntPtr LoadLibrary(string dllToLoad);
-        
-        [DllImport("kernel32")]
-        public static extern IntPtr GetProcAddress(IntPtr dllPtr, string functionName);
-        
-        [DllImport("kernel32")]
-        public static extern bool FreeLibrary(IntPtr dllPtr);
-    }
-#endif
-    
     [StructLayout(LayoutKind.Sequential)]
     public struct CollisionEvent
     {
@@ -132,10 +43,10 @@ namespace Packages.rapier4unity.Runtime
         public static extern void teardown();
         
         [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
-        public static extern unsafe IntPtr solve();
+        public static extern unsafe RawArray<CollisionEvent>* solve();
         
         [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
-        public static extern unsafe void free_collision_events(IntPtr events);
+        public static extern unsafe void free_collision_events(RawArray<CollisionEvent>* events);
         
         [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
         public static extern void set_gravity(float x, float y, float z);
@@ -147,7 +58,7 @@ namespace Packages.rapier4unity.Runtime
         public static extern ColliderHandle add_cuboid_collider(float half_extents_x, float half_extents_y, float half_extents_z, float mass, bool is_sensor);
         
         [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
-        public static extern ColliderHandle add_sphere_collider(float radius, float mass);
+        public static extern ColliderHandle add_sphere_collider(float radius, float mass, bool is_sensor);
         
         [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
         public static extern RigidBodyHandle add_rigid_body(ColliderHandle collider, RigidBodyType rigidBodyType, float position_x, float position_y, float position_z);
@@ -157,6 +68,30 @@ namespace Packages.rapier4unity.Runtime
 
         [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
         public static extern void add_force(RigidBodyHandle handle, float forceX, float forceY, float forceZ, ForceMode mode);
+
+        public struct RapierRaycastHit
+        {
+            internal Vector3 m_Point;
+            internal Vector3 m_Normal;
+            internal uint m_FaceID;
+            internal float m_Distance;
+            internal Vector2 m_UV;
+            internal ColliderHandle m_Collider;
+        }
+
+        public static bool cast_ray(float from_x, float from_y, float from_z, float dir_x, float dir_y, float dir_z, out RapierRaycastHit hit)
+        {
+            unsafe
+            {
+                RapierRaycastHit* hitPtr = stackalloc RapierRaycastHit[1];
+                var did_hit = cast_ray(from_x, from_y, from_z, dir_x, dir_y, dir_z, hitPtr);
+                hit = *hitPtr;
+                return did_hit;
+            }
+        }
+        
+        [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
+        public static extern unsafe bool cast_ray(float from_x, float from_y, float from_z, float dir_x, float dir_y, float dir_z, RapierRaycastHit* out_hit);
     }
     
     public struct ColliderHandle

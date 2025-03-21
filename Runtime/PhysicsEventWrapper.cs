@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Packages.rapier4unity.Runtime;
+using Unity.Collections.LowLevel.Unsafe;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Assertions;
@@ -113,18 +114,51 @@ public class RapierLoop
 	
 	public static void AddForceWithMode(Rigidbody rigidbody, Vector3 force, ForceMode mode)
 	{
-		// Debug.Log($"Adding force {force} to rigidbody {rigidbody}");
 		var handle = rigidbodyToHandle[rigidbody];
 		RapierBindings.add_force(handle, force.x, force.y, force.z, mode);
 	}
 	
 	public static void AddForce(Rigidbody rigidbody, Vector3 force)
 	{
-		// Debug.Log($"Adding force {force} to rigidbody {rigidbody}");
 		var handle = rigidbodyToHandle[rigidbody];
 		RapierBindings.add_force(handle, force.x, force.y, force.z, ForceMode.Force);
 	}
+
+
+
+	public struct LocalRaycastHit
+	{
+		internal Vector3 m_Point;
+		internal Vector3 m_Normal;
+		internal uint m_FaceID;
+		internal float m_Distance;
+		internal Vector2 m_UV;
+		internal int m_Collider;
+	}
+
+	public static bool Raycast(Ray ray, out RaycastHit hit)
+	{
+		var did_hit = RapierBindings.cast_ray(ray.origin.x, ray.origin.y, ray.origin.z, ray.direction.x, ray.direction.y, ray.direction.z, out var rapierHit);
+		if (!did_hit)
+		{
+			hit = new RaycastHit();
+			return false;
+		}
+		var localHit = new LocalRaycastHit
+		{
+			m_Point = rapierHit.m_Point,
+			m_Normal = rapierHit.m_Normal,
+			m_FaceID = rapierHit.m_FaceID,
+			m_Distance = rapierHit.m_Distance,
+			m_UV = rapierHit.m_UV,
+			m_Collider = handleToCollider[rapierHit.m_Collider].GetInstanceID()
+		};
+		hit = UnsafeUtility.As<LocalRaycastHit, RaycastHit>(ref localHit);
+		return true;
+	}
+
 	
+	// Called in the beginning of every frame, this ensures that all colliders and rigidbodies are initialized
 	public static void Initialization()
 	{
 		if (!Application.isPlaying)
@@ -132,6 +166,7 @@ public class RapierLoop
 		
 		foreach (var collider in Object.FindObjectsByType<Collider>(FindObjectsSortMode.None))
 		{
+			// Add Rapier Collider if it doesn't exist
 			if (!colliderToHandle.ContainsKey(collider))
 			{
 				var potentialRigidbody = collider.GetComponent<Rigidbody>();
@@ -141,23 +176,29 @@ public class RapierLoop
 				{
 					case BoxCollider boxCollider:
 					{
-						var newColliderHandle = RapierBindings.add_cuboid_collider(transformScale.x * boxCollider.size.x / 2, transformScale.y * boxCollider.size.y / 2, transformScale.z * boxCollider.size.z / 2, potentialRigidbody == null ? 0 : potentialRigidbody.mass, boxCollider.isTrigger);
+						var newColliderHandle = RapierBindings.add_cuboid_collider(
+							transformScale.x * boxCollider.size.x / 2,
+							transformScale.y * boxCollider.size.y / 2,
+							transformScale.z * boxCollider.size.z / 2, 
+							potentialRigidbody == null ? 0 : potentialRigidbody.mass,
+							boxCollider.isTrigger);
 						colliderToHandle[collider] = newColliderHandle;
 						handleToCollider[newColliderHandle] = collider;
-						Debug.Log($"Added collider {collider} with handle {colliderToHandle[collider]}");
 						break;
 					}
 					case SphereCollider sphereCollider:
 					{
-						var newColliderHandle = RapierBindings.add_sphere_collider(transformScale.x * sphereCollider.radius, potentialRigidbody == null ? 0 : potentialRigidbody.mass);
+						var newColliderHandle = RapierBindings.add_sphere_collider(
+							transformScale.x * sphereCollider.radius, 
+							potentialRigidbody == null ? 0 : potentialRigidbody.mass,
+							sphereCollider.isTrigger);
 						colliderToHandle[collider] = newColliderHandle;
 						handleToCollider[newColliderHandle] = collider;
-						Debug.Log($"Added collider {collider} with handle {colliderToHandle[collider]}");
 						break;
 					}
 				}
-
-
+				
+				// Add events for collider
 				var eventsForCollider = new EventsForCollider();
 				
 				eventsForCollider.onTriggerEnter = new List<BasicEvent<Collider>>();
@@ -171,6 +212,7 @@ public class RapierLoop
 				var components = collider.gameObject.GetComponents<MonoBehaviour>();
 				foreach (var component in components)
 				{
+					// Lookup events for MonoBehaviour, create if they don't exist
 					if (!monoBehaviourEvents.TryGetValue(component, out var eventsForMonoBehaviour))
 					{
 						eventsForMonoBehaviour.onTriggerEnter = new BasicEvent<Collider>(component, "OnTriggerEnter");
@@ -184,6 +226,7 @@ public class RapierLoop
 						monoBehaviourEvents[component] = eventsForMonoBehaviour;
 					}
 					
+					// Add events for collider
 					if (eventsForMonoBehaviour.onTriggerEnter.IsValid)
 						eventsForCollider.onTriggerEnter.Add(eventsForMonoBehaviour.onTriggerEnter);
 					if (eventsForMonoBehaviour.onTriggerExit.IsValid)
@@ -201,9 +244,10 @@ public class RapierLoop
 				
 				physicsEvents[collider] = eventsForCollider;
 
+				// In Unity if an object doesn't have a rigidbody, it's considered static
+				// In Rapier, we need to add a fixed rigidbody, so we can simulate dynamic object interacting with static objects
 				if (potentialRigidbody == null && colliderToHandle.TryGetValue(collider, out var colliderHandle))
 				{
-					// Add Fixed RigidBody
 					fixedRigidbodies[collider] = RapierBindings.add_rigid_body(colliderHandle, RigidBodyType.Fixed, collider.transform.position.x, collider.transform.position.y, collider.transform.position.z);
 				}
 			}
@@ -211,6 +255,7 @@ public class RapierLoop
 		
 		foreach (var rigidbody in Object.FindObjectsByType<Rigidbody>(FindObjectsSortMode.None))
 		{
+			// Add Rapier RigidBody if it doesn't exist
 			if (!rigidbodyToHandle.ContainsKey(rigidbody))
 			{
 				var colliders = rigidbody.GetComponents<Collider>();
@@ -218,24 +263,29 @@ public class RapierLoop
 				var colliderHandle = colliderToHandle[colliders[0]];
 				var trs = rigidbody.transform;
 				rigidbodyToHandle[rigidbody] = RapierBindings.add_rigid_body(colliderHandle, RigidBodyType.Dynamic, trs.position.x, trs.position.y, trs.position.z);
-				Debug.Log($"Added rigidbody {rigidbody} with handle {rigidbodyToHandle[rigidbody]} and collider handle {colliderHandle} which is {colliders[0]}");
 			}
 		}
 		
 	}
 	
+	// Called at the end of the FixedUpdate loop
+	// This is where we solve physics and get collision events
+	// After that we update the GameObject positions of GameObjects with RigidBody component
 	public static void FixedUpdate()
 	{
+		// Only run in play mode
 		if (!Application.isPlaying)
 			return;
 
 		unsafe
 		{
-			// var event_count = new NativeReference<int>(0, Allocator.Temp);
-			var events = (RawArray<CollisionEvent>*)RapierBindings.solve();
-			for (int i = 0; i < events->length; i++)
+			// Solve physics and get collision events
+			var eventsPtrToArray = RapierBindings.solve();
+			
+			// Handle collision events
+			for (int i = 0; i < eventsPtrToArray->length; i++)
 			{
-				var @event = (*events)[i];
+				var @event = (*eventsPtrToArray)[i];
 				var collider1 = handleToCollider[@event.collider1];
 				var collider2 = handleToCollider[@event.collider2];
 				var eventsForCollider1 = physicsEvents[collider1];
@@ -265,6 +315,7 @@ public class RapierLoop
 				}
 			}
 
+			// Handle trigger stay
 			foreach (var activeTriggerPair in activeTriggerPairs)
 			{
 				var (collider1, collider2) = activeTriggerPair;
@@ -278,31 +329,21 @@ public class RapierLoop
 						stay.Invoke(collider1);
 				}
 			}
-			RapierBindings.free_collision_events((IntPtr)events);
+			RapierBindings.free_collision_events(eventsPtrToArray);
 		}
 		
+		// Update GameObject positions of GameObjects with RigidBody component
 		foreach (var rigidbody in Object.FindObjectsByType<Rigidbody>(FindObjectsSortMode.None))
 		{
-			Debug.Log($"Velocity: {rigidbody.linearVelocity}");
 			var handle = rigidbodyToHandle[rigidbody];
 			var position = RapierBindings.get_position(handle);
 			rigidbody.transform.SetPositionAndRotation(position.position, position.rotation);
-			
-			// Debug.Log($"Updated rigidbody {rigidbody} with handle {handle} to position {position}");
 		}
 		
-
+		// Update fixed rigidbodies
 		foreach (var (collider, rbhandle) in fixedRigidbodies)
 		{
-			// var eventsForCollider = physicsEvents[GameObject.Find("Sphere").GetComponent<Collider>()];
-			// foreach (var enter in eventsForCollider.onTriggerEnter)
-			// 	enter.Invoke(collider);
 			
-			//var position = RapierBindings.get_position(rbhandle);
-			//Debug.Log($"Updated fixed rigidbody {collider} with handle {rbhandle} to position {position}");
-			
-			//collider.transform.position = new Vector3(position.position.x, position.position.y, position.position.z);
-			//collider.transform.rotation = new Quaternion(position.rotation.x, position.rotation.y, position.rotation.z, position.rotation.w);
 		}
 	}
 }

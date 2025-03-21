@@ -1,12 +1,12 @@
 
-Build the dylib file and move it to the build_bin folder
+Release Build the dylib file and move it to the build_bin folder
 ```shell
 cargo build -r
 mkdir ../../build_bin
 mv target/release/librapier_c_bind.dylib ../../build_bin/
 ```
 
-Build the dylib file and move it to the build_bin folder
+Debug Build the dylib file and move it to the build_bin folder
 ```shell
 cargo build
 mv target/debug/librapier_c_bind.dylib ../../build_bin/
