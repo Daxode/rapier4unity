@@ -1,0 +1,15 @@
+{
+  "name": "com.daxode.rapier4unity",
+  "displayName": "Rapier for Unity",
+  "version": "0.1.0",
+  "description": "This let's you simulate physics in Unity using Rapier (useful if your server only can run webasm standalone compatible physics)",
+  "keywords": [],
+  "author": {
+    "name": "Daniel Kierkegaard Andersen",
+    "url": "https://daxode.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/daxode/com.daxode.rapier4unity"
+  }
+}
