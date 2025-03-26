@@ -2,7 +2,7 @@ mod handles;
 mod unity_interface_bridge;
 use std::mem;
 use rapier3d::crossbeam;
-use rapier3d::na::{Vector2, Vector3, Vector4};
+use rapier3d::na::{Quaternion, UnitQuaternion, Vector2, Vector3, Vector4};
 use rapier3d::prelude::*;
 use crate::handles::{SerializableColliderHandle, SerializableRigidBodyHandle, SerializableRigidBodyType};
 
@@ -91,14 +91,39 @@ extern "C" fn add_sphere_collider(radius:f32, mass:f32, is_sensor:bool) -> Seria
     psd.collider_set.insert(collider).into()
 }
 
-// RigidBody
+//  public static extern ColliderHandle add_capsule_collider(float half_height, float radius, float mass, bool is_sensor);
+#[unsafe(no_mangle)]
+extern "C" fn add_capsule_collider(half_height:f32, radius:f32, mass:f32, is_sensor:bool) -> SerializableColliderHandle {
+    let psd = get_mutable_physics_solver();
+    let collider = ColliderBuilder::capsule_y(half_height, radius).density(mass).active_events(ActiveEvents::COLLISION_EVENTS).sensor(is_sensor).build();
+    psd.collider_set.insert(collider).into()
+}
 
 #[unsafe(no_mangle)]
-extern "C" fn add_rigid_body(collider: SerializableColliderHandle, rb_type: SerializableRigidBodyType, position_x:f32, position_y:f32, position_z:f32) -> SerializableRigidBodyHandle {
+extern "C" fn add_rigid_body(collider: SerializableColliderHandle, rb_type: SerializableRigidBodyType, position_x:f32, position_y:f32, position_z:f32, rotation_x:f32, rotation_y:f32, rotation_z:f32, rotation_w:f32) -> SerializableRigidBodyHandle {
     let psd = get_mutable_physics_solver();
+    
+    // Convert from Unity's left-handed to Rapier's right-handed coordinate system
+    // This typically involves flipping the Z-axis components
+    // For quaternions, we can negate the x and y components
+    let quat = Quaternion::new(rotation_w, rotation_x, rotation_y, rotation_z);
+    
+    // Convert to unit quaternion
+    let unit_quat = UnitQuaternion::from_quaternion(quat);
+    
+    // Extract the rotation angle and axis
+    let angle = unit_quat.angle();
+    let axis = unit_quat.axis().unwrap_or(Vector3::z_axis());
+    
+    // Create the AngVector (axis-angle representation)
+    let ang_vector = axis.into_inner() * angle;
+    
+    // Build with the AngVector
     let rigid_body = RigidBodyBuilder::new(rb_type.into())
         .translation(vector![position_x, position_y, position_z])
+        .rotation(ang_vector)
         .build();
+
     let rb_handle = psd.rigid_body_set.insert(rigid_body);
     psd.collider_set.set_parent(collider.into(), Some(rb_handle), &mut psd.rigid_body_set);
     rb_handle.into()
@@ -106,14 +131,39 @@ extern "C" fn add_rigid_body(collider: SerializableColliderHandle, rb_type: Seri
 
 // Get Position
 #[unsafe(no_mangle)]
-extern "C" fn get_position(rb_handle: SerializableRigidBodyHandle) -> RapierPosition {
+extern "C" fn get_transform(rb_handle: SerializableRigidBodyHandle) -> RapierTransform {
     let psd = get_mutable_physics_solver();
     let rb = psd.rigid_body_set.get(rb_handle.into()).unwrap();
     let pos = rb.position();
-    RapierPosition{
+    RapierTransform{
         rotation: pos.rotation.coords,
         position: pos.translation.vector,
     }
+}
+
+// Set Position
+#[unsafe(no_mangle)]
+extern "C" fn set_transform(rb_handle: SerializableRigidBodyHandle) {
+    let psd = get_mutable_physics_solver();
+    let rb = psd.rigid_body_set.get_mut(rb_handle.into()).unwrap();
+    let pos = rb.position();
+    rb.set_position(*pos, true);
+}
+
+// Set Velocity
+#[unsafe(no_mangle)]
+extern "C" fn set_velocity(rb_handle: SerializableRigidBodyHandle, velocity_x:f32, velocity_y:f32, velocity_z:f32) {
+    let psd = get_mutable_physics_solver();
+    let rb = psd.rigid_body_set.get_mut(rb_handle.into()).unwrap();
+    rb.set_linvel(vector![velocity_x, velocity_y, velocity_z], true);
+}
+
+// Get Velocity
+#[unsafe(no_mangle)]
+extern "C" fn get_velocity(rb_handle: SerializableRigidBodyHandle) -> Vector3<f32> {
+    let psd = get_mutable_physics_solver();
+    let rb = psd.rigid_body_set.get(rb_handle.into()).unwrap();
+    rb.linvel().clone()
 }
 
 // Add Force
@@ -198,9 +248,9 @@ pub enum ForceMode
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
-struct RapierPosition {
+struct RapierTransform {
     rotation: Vector4<f32>,
-    position: Vector<f32>,
+    position: Vector<f32>
 }
 
 // PhysicsSolverData is a struct that holds all the data needed to solve physics.
