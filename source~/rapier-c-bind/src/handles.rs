@@ -2,7 +2,7 @@ use rapier3d::prelude::*;
 
 // CollHandle is a handle to a collider.
 #[derive(Debug, Clone, Copy)]
-#[repr(C)]
+#[repr(C)] // Keep the structure of the memory layout the same as in C
 pub struct SerializableColliderHandle {
     index: u32,
     generation: u32,
@@ -49,8 +49,8 @@ impl From<SerializableRigidBodyHandle> for RigidBodyHandle {
     }
 }
 
-#[repr(C)]
 #[derive(Debug, Clone, Copy)]
+#[repr(C)]
 pub enum SerializableRigidBodyType {
     Dynamic = 0,
     Fixed = 1,

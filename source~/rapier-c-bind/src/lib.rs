@@ -1,11 +1,8 @@
 mod handles;
-mod UnityInterfaceBridge;
-
-use std::collections::HashSet;
+mod unity_interface_bridge;
 use std::mem;
 use rapier3d::crossbeam;
 use rapier3d::na::{Vector2, Vector3, Vector4};
-use rapier3d::parry::partitioning::IndexedData;
 use rapier3d::prelude::*;
 use crate::handles::{SerializableColliderHandle, SerializableRigidBodyHandle, SerializableRigidBodyType};
 
@@ -148,12 +145,12 @@ extern "C" fn add_force(rb_handle: SerializableRigidBodyHandle, force_x:f32, for
 #[derive(Debug, Clone, Copy)]
 struct RaycastHit
 {
-    m_Point: Vector3<f32>,
-    m_Normal: Vector3<f32>,
-    m_FaceID: u32,
-    m_Distance: f32,
-    m_UV: Vector2<f32>,
-    m_Collider: SerializableColliderHandle,
+    m_point: Vector3<f32>,
+    m_normal: Vector3<f32>,
+    m_face_id: u32,
+    m_distance: f32,
+    m_uv: Vector2<f32>,
+    m_collider: SerializableColliderHandle,
 }
 
 #[unsafe(no_mangle)]
@@ -172,12 +169,12 @@ extern "C" fn cast_ray(from_x:f32, from_y:f32, from_z:f32, dir_x:f32, dir_y:f32,
         let distance = intersection.time_of_impact;
         let uv = vector![0.0, 0.0];
         let hit = RaycastHit{
-            m_Point: point.coords,
-            m_Normal: normal,
-            m_FaceID: face_id,
-            m_Distance: distance,
-            m_UV: uv,
-            m_Collider: handle.into(),
+            m_point: point.coords,
+            m_normal: normal,
+            m_face_id: face_id,
+            m_distance: distance,
+            m_uv: uv,
+            m_collider: handle.into(),
         };
         unsafe {
             *out_hit = hit;
@@ -261,7 +258,7 @@ struct SerializableCollisionEvent {
 impl PhysicsSolverData<'_> {
     fn solve(&mut self) -> Vec<SerializableCollisionEvent> {
         let (collision_send, collision_recv) = crossbeam::channel::unbounded();
-        let (contact_force_send, contact_force_recv) = crossbeam::channel::unbounded();
+        let (contact_force_send, _contact_force_recv) = crossbeam::channel::unbounded();
         let event_handler = ChannelEventCollector::new(collision_send, contact_force_send);
 
         self.physics_pipeline.step(
