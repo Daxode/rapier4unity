@@ -200,9 +200,63 @@ public class RapierLoop
 						{
 							ColliderHandle newColliderHandle = RapierBindings.add_capsule_collider(
 								transformScale.x * capsuleCollider.radius,
-								capsuleCollider.height / 2 - capsuleCollider.radius,
+								transformScale.y * (capsuleCollider.height / 2) - (transformScale.x * capsuleCollider.radius),
 								potentialRigidbody == null ? 0 : potentialRigidbody.mass,
 								capsuleCollider.isTrigger);
+							colliderToHandle[collider] = newColliderHandle;
+							handleToCollider[newColliderHandle] = collider;
+							break;
+						}
+					case MeshCollider meshCollider:
+						{
+							// Make sure we have a valid mesh
+							Mesh mesh = meshCollider.sharedMesh;
+							if (mesh == null)
+							{
+								Debug.LogError($"MeshCollider on {collider.gameObject.name} has no mesh assigned!");
+								continue;
+							}
+
+							// Get vertex data
+							Vector3[] vertices = mesh.vertices;
+							Vector3 scale = collider.transform.localScale;
+							float[] verticesFlat = new float[vertices.Length * 3];
+
+							// Apply local scale to vertices
+							for (int i = 0; i < vertices.Length; i++)
+							{
+								verticesFlat[i * 3] = vertices[i].x * scale.x;
+								verticesFlat[i * 3 + 1] = vertices[i].y * scale.y;
+								verticesFlat[i * 3 + 2] = vertices[i].z * scale.z;
+							}
+
+							ColliderHandle newColliderHandle;
+
+							if (meshCollider.convex)
+							{
+								// Use convex hull for convex meshes (better performance)
+								newColliderHandle = RapierBindings.add_convex_mesh_collider(
+									verticesFlat, vertices.Length,
+									potentialRigidbody == null ? 0 : potentialRigidbody.mass,
+									meshCollider.isTrigger);
+							}
+							else
+							{
+								// Use trimesh for concave meshes
+								int[] triangles = mesh.triangles;
+								uint[] indicesFlat = new uint[triangles.Length];
+								for (int i = 0; i < triangles.Length; i++)
+								{
+									indicesFlat[i] = (uint)triangles[i];
+								}
+
+								newColliderHandle = RapierBindings.add_mesh_collider(
+									verticesFlat, vertices.Length,
+									indicesFlat, triangles.Length / 3,
+									potentialRigidbody == null ? 0 : potentialRigidbody.mass,
+									meshCollider.isTrigger);
+							}
+
 							colliderToHandle[collider] = newColliderHandle;
 							handleToCollider[newColliderHandle] = collider;
 							break;
@@ -293,6 +347,7 @@ public class RapierLoop
 					trs.rotation.z,
 					trs.rotation.w);
 			}
+			RapierBindings.enable_CCD(rigidbodyToHandle[rigidbody], rigidbody.collisionDetectionMode == CollisionDetectionMode.Continuous);
 		}
 
 	}

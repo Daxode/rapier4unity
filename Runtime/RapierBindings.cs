@@ -104,6 +104,20 @@ namespace Packages.rapier4unity.Runtime
 #else
                 [DllImport("rapier_c_bind", CallingConvention = CallingConvention.Cdecl)]
 #endif
+                public static extern ColliderHandle add_mesh_collider([In] float[] vertices, int verticesCount, [In] uint[] indices, int indicesCount, float mass, bool is_sensor);
+
+#if UNITY_STANDALONE_OSX
+        [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
+#else
+                [DllImport("rapier_c_bind", CallingConvention = CallingConvention.Cdecl)]
+#endif
+                public static extern ColliderHandle add_convex_mesh_collider([In] float[] vertices, int verticesCount, float mass, bool is_sensor);
+
+#if UNITY_STANDALONE_OSX
+        [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
+#else
+                [DllImport("rapier_c_bind", CallingConvention = CallingConvention.Cdecl)]
+#endif
                 public static extern RigidBodyHandle add_rigid_body(ColliderHandle collider, RigidBodyType rigidBodyType, float position_x, float position_y, float position_z, float rotation_x, float rotation_y, float rotation_z, float rotation_w);
 
 #if UNITY_STANDALONE_OSX
@@ -112,6 +126,13 @@ namespace Packages.rapier4unity.Runtime
                 [DllImport("rapier_c_bind", CallingConvention = CallingConvention.Cdecl)]
 #endif
                 public static extern RapierTransform get_transform(RigidBodyHandle rigidBodyHandle);
+
+#if UNITY_STANDALONE_OSX
+        [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
+#else
+                [DllImport("rapier_c_bind", CallingConvention = CallingConvention.Cdecl)]
+#endif
+                public static extern void enable_CCD(RigidBodyHandle handle, bool enabled);
 
 #if UNITY_STANDALONE_OSX
         [DllImport("librapier_c_bind.dylib", CallingConvention = CallingConvention.Cdecl)]
