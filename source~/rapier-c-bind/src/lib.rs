@@ -218,7 +218,6 @@ extern "C" fn add_rigid_body(collider: SerializableColliderHandle, rb_type: Seri
     rb_handle.into()
 }
 
-// Get Position
 #[unsafe(no_mangle)]
 extern "C" fn get_transform(rb_handle: SerializableRigidBodyHandle) -> RapierTransform {
     let psd = get_mutable_physics_solver();
@@ -230,18 +229,20 @@ extern "C" fn get_transform(rb_handle: SerializableRigidBodyHandle) -> RapierTra
     }
 }
 
-// Set Transform
 #[unsafe(no_mangle)]
-extern "C" fn set_transform(rb_handle: SerializableRigidBodyHandle) {
+extern "C" fn set_transform_position(rb_handle: SerializableRigidBodyHandle, position_x:f32, position_y:f32, position_z:f32) {
     let psd = get_mutable_physics_solver();
     let rb = psd.rigid_body_set.get_mut(rb_handle.into()).unwrap();
-    let pos = rb.position();
-    let rot = pos.rotation;
-    rb.set_position(*pos, true);
-    rb.set_rotation(rot, true);
+    rb.set_next_kinematic_position(Isometry::translation(position_x, position_y, position_z));
 }
 
-// Set Velocity
+#[unsafe(no_mangle)]
+extern "C" fn set_transform_rotation(rb_handle: SerializableRigidBodyHandle, rotation_x:f32, rotation_y:f32, rotation_z:f32, rotation_w:f32) {
+    let psd = get_mutable_physics_solver();
+    let rb: &mut RigidBody = psd.rigid_body_set.get_mut(rb_handle.into()).unwrap();
+    rb.set_next_kinematic_rotation(UnitQuaternion::new_normalize(Quaternion::new(rotation_w, rotation_x, rotation_y, rotation_z)));
+}
+
 #[unsafe(no_mangle)]
 extern "C" fn set_linear_velocity(rb_handle: SerializableRigidBodyHandle, velocity_x:f32, velocity_y:f32, velocity_z:f32) {
     let psd = get_mutable_physics_solver();
@@ -249,7 +250,6 @@ extern "C" fn set_linear_velocity(rb_handle: SerializableRigidBodyHandle, veloci
     rb.set_linvel(vector![velocity_x, velocity_y, velocity_z], true);
 }
 
-// Set Angular Velocity
 #[unsafe(no_mangle)]
 extern "C" fn set_angular_velocity(rb_handle: SerializableRigidBodyHandle, velocity_x:f32, velocity_y:f32, velocity_z:f32) {
     let psd = get_mutable_physics_solver();
@@ -257,7 +257,6 @@ extern "C" fn set_angular_velocity(rb_handle: SerializableRigidBodyHandle, veloc
     rb.set_angvel(vector![velocity_x, velocity_y, velocity_z], true);
 }
 
-// Get Velocity
 #[unsafe(no_mangle)]
 extern "C" fn get_linear_velocity(rb_handle: SerializableRigidBodyHandle) -> Vector3<f32> {
     let psd = get_mutable_physics_solver();
@@ -265,7 +264,6 @@ extern "C" fn get_linear_velocity(rb_handle: SerializableRigidBodyHandle) -> Vec
     rb.linvel().clone()
 }
 
-// Get Angular Velocity
 #[unsafe(no_mangle)]
 extern "C" fn get_angular_velocity(rb_handle: SerializableRigidBodyHandle) -> Vector3<f32> {
     let psd = get_mutable_physics_solver();
