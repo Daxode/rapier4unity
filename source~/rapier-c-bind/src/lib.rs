@@ -1,11 +1,8 @@
 mod handles;
-mod UnityInterfaceBridge;
-
-use std::collections::HashSet;
+mod unity_interface_bridge;
 use std::mem;
 use rapier3d::crossbeam;
-use rapier3d::na::{Vector2, Vector3, Vector4};
-use rapier3d::parry::partitioning::IndexedData;
+use rapier3d::na::{Quaternion, UnitQuaternion, Vector2, Vector3, Vector4};
 use rapier3d::prelude::*;
 use crate::handles::{SerializableColliderHandle, SerializableRigidBodyHandle, SerializableRigidBodyType};
 
@@ -94,29 +91,187 @@ extern "C" fn add_sphere_collider(radius:f32, mass:f32, is_sensor:bool) -> Seria
     psd.collider_set.insert(collider).into()
 }
 
+#[unsafe(no_mangle)]
+extern "C" fn add_capsule_collider(half_height:f32, radius:f32, mass:f32, is_sensor:bool) -> SerializableColliderHandle {
+    let psd = get_mutable_physics_solver();
+    let collider = ColliderBuilder::capsule_y(half_height, radius).density(mass).active_events(ActiveEvents::COLLISION_EVENTS).sensor(is_sensor).build();
+    psd.collider_set.insert(collider).into()
+}
+
+// TODO Investigate optimizing this a bit
+#[unsafe(no_mangle)]
+extern "C" fn add_mesh_collider(
+    vertices_ptr: *const f32,
+    vertices_count: usize,
+    indices_ptr: *const u32, 
+    indices_count: usize,
+    mass: f32,
+    is_sensor: bool
+) -> SerializableColliderHandle {
+    let psd = get_mutable_physics_solver();
+    
+    // Convert C arrays to Rust slices
+    let vertices_flat = unsafe { std::slice::from_raw_parts(vertices_ptr, vertices_count * 3) };
+    let indices_flat = unsafe { std::slice::from_raw_parts(indices_ptr, indices_count * 3) };
+    
+    // Convert flat arrays to points
+    let mut vertices = Vec::with_capacity(vertices_count);
+    for i in 0..vertices_count {
+        vertices.push(point![
+            vertices_flat[i * 3],
+            vertices_flat[i * 3 + 1],
+            vertices_flat[i * 3 + 2]
+        ]);
+    }
+    
+    // Convert flat indices to triangle indices
+    let mut indices = Vec::with_capacity(indices_count);
+    for i in 0..indices_count {
+        indices.push([
+            indices_flat[i * 3],
+            indices_flat[i * 3 + 1],
+            indices_flat[i * 3 + 2]
+        ]);
+    }
+    
+    // Build the trimesh collider
+    if let Ok(collider_builder) = ColliderBuilder::trimesh(vertices, indices) {
+        let collider = collider_builder.active_events(ActiveEvents::COLLISION_EVENTS)
+        .density(mass)
+        .sensor(is_sensor)
+        .build();
+        psd.collider_set.insert(collider).into()
+    }
+    else {
+        log::warn!("Failed to create mesh collider");
+        ColliderHandle::invalid().into()
+    }
+}
+
+// TODO Investigate optimizing this a bit
+// In practice we may only want to use this option as opposed to full mesh collision
+#[unsafe(no_mangle)]
+extern "C" fn add_convex_mesh_collider(
+    vertices_ptr: *const f32,
+    vertices_count: usize,
+    mass: f32,
+    is_sensor: bool
+) -> SerializableColliderHandle {
+    let psd = get_mutable_physics_solver();
+    
+    // Convert C arrays to Rust slices
+    let vertices_flat = unsafe { std::slice::from_raw_parts(vertices_ptr, vertices_count * 3) };
+    
+    // Convert flat arrays to points
+    let mut points = Vec::with_capacity(vertices_count);
+    for i in 0..vertices_count {
+        points.push(point![
+            vertices_flat[i * 3],
+            vertices_flat[i * 3 + 1],
+            vertices_flat[i * 3 + 2]
+        ]);
+    }
+    
+    // Build the convex hull collider
+    if let Some(collider_builder) = ColliderBuilder::convex_hull(&points) {
+        let collider = collider_builder
+            .active_events(ActiveEvents::COLLISION_EVENTS)
+            .density(mass)
+            .sensor(is_sensor)
+            .build();
+        psd.collider_set.insert(collider).into()
+    } else {
+        log::warn!("Failed to create convex hull collider");
+        ColliderHandle::invalid().into()
+    }
+}
+
 // RigidBody
 
 #[unsafe(no_mangle)]
-extern "C" fn add_rigid_body(collider: SerializableColliderHandle, rb_type: SerializableRigidBodyType, position_x:f32, position_y:f32, position_z:f32) -> SerializableRigidBodyHandle {
+extern "C" fn add_rigid_body(collider: SerializableColliderHandle, rb_type: SerializableRigidBodyType, position_x:f32, position_y:f32, position_z:f32, rotation_x:f32, rotation_y:f32, rotation_z:f32, rotation_w:f32) -> SerializableRigidBodyHandle {
     let psd = get_mutable_physics_solver();
+    let quat = Quaternion::new(rotation_w, rotation_x, rotation_y, rotation_z);
+    
+    // Convert to unit quaternion
+    let unit_quat = UnitQuaternion::from_quaternion(quat);
+    
+    // Extract the rotation angle and axis
+    let angle = unit_quat.angle();
+    let axis = unit_quat.axis().unwrap_or(Vector3::z_axis());
+    
+    // Create the AngVector (axis-angle representation)
+    let ang_vector = axis.into_inner() * angle;
+    
+    // Build with the AngVector
     let rigid_body = RigidBodyBuilder::new(rb_type.into())
         .translation(vector![position_x, position_y, position_z])
+        .rotation(ang_vector)
         .build();
+
     let rb_handle = psd.rigid_body_set.insert(rigid_body);
     psd.collider_set.set_parent(collider.into(), Some(rb_handle), &mut psd.rigid_body_set);
     rb_handle.into()
 }
 
-// Get Position
 #[unsafe(no_mangle)]
-extern "C" fn get_position(rb_handle: SerializableRigidBodyHandle) -> RapierPosition {
+extern "C" fn get_transform(rb_handle: SerializableRigidBodyHandle) -> RapierTransform {
     let psd = get_mutable_physics_solver();
     let rb = psd.rigid_body_set.get(rb_handle.into()).unwrap();
     let pos = rb.position();
-    RapierPosition{
+    RapierTransform{
         rotation: pos.rotation.coords,
         position: pos.translation.vector,
     }
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn set_transform_position(rb_handle: SerializableRigidBodyHandle, position_x:f32, position_y:f32, position_z:f32) {
+    let psd = get_mutable_physics_solver();
+    let rb = psd.rigid_body_set.get_mut(rb_handle.into()).unwrap();
+    rb.set_next_kinematic_position(Isometry::translation(position_x, position_y, position_z));
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn set_transform_rotation(rb_handle: SerializableRigidBodyHandle, rotation_x:f32, rotation_y:f32, rotation_z:f32, rotation_w:f32) {
+    let psd = get_mutable_physics_solver();
+    let rb: &mut RigidBody = psd.rigid_body_set.get_mut(rb_handle.into()).unwrap();
+    rb.set_next_kinematic_rotation(UnitQuaternion::new_normalize(Quaternion::new(rotation_w, rotation_x, rotation_y, rotation_z)));
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn set_linear_velocity(rb_handle: SerializableRigidBodyHandle, velocity_x:f32, velocity_y:f32, velocity_z:f32) {
+    let psd = get_mutable_physics_solver();
+    let rb = psd.rigid_body_set.get_mut(rb_handle.into()).unwrap();
+    rb.set_linvel(vector![velocity_x, velocity_y, velocity_z], true);
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn set_angular_velocity(rb_handle: SerializableRigidBodyHandle, velocity_x:f32, velocity_y:f32, velocity_z:f32) {
+    let psd = get_mutable_physics_solver();
+    let rb = psd.rigid_body_set.get_mut(rb_handle.into()).unwrap();
+    rb.set_angvel(vector![velocity_x, velocity_y, velocity_z], true);
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn get_linear_velocity(rb_handle: SerializableRigidBodyHandle) -> Vector3<f32> {
+    let psd = get_mutable_physics_solver();
+    let rb = psd.rigid_body_set.get(rb_handle.into()).unwrap();
+    rb.linvel().clone()
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn get_angular_velocity(rb_handle: SerializableRigidBodyHandle) -> Vector3<f32> {
+    let psd = get_mutable_physics_solver();
+    let rb = psd.rigid_body_set.get(rb_handle.into()).unwrap();
+    rb.angvel().clone()
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn enable_CCD(rb_handle: SerializableRigidBodyHandle, enabled: bool) {
+    let psd = get_mutable_physics_solver();
+    let rb = psd.rigid_body_set.get_mut(rb_handle.into()).unwrap();
+    rb.enable_ccd(enabled);
 }
 
 // Add Force
@@ -148,12 +303,12 @@ extern "C" fn add_force(rb_handle: SerializableRigidBodyHandle, force_x:f32, for
 #[derive(Debug, Clone, Copy)]
 struct RaycastHit
 {
-    m_Point: Vector3<f32>,
-    m_Normal: Vector3<f32>,
-    m_FaceID: u32,
-    m_Distance: f32,
-    m_UV: Vector2<f32>,
-    m_Collider: SerializableColliderHandle,
+    m_point: Vector3<f32>,
+    m_normal: Vector3<f32>,
+    m_face_id: u32,
+    m_distance: f32,
+    m_uv: Vector2<f32>,
+    m_collider: SerializableColliderHandle,
 }
 
 #[unsafe(no_mangle)]
@@ -172,12 +327,12 @@ extern "C" fn cast_ray(from_x:f32, from_y:f32, from_z:f32, dir_x:f32, dir_y:f32,
         let distance = intersection.time_of_impact;
         let uv = vector![0.0, 0.0];
         let hit = RaycastHit{
-            m_Point: point.coords,
-            m_Normal: normal,
-            m_FaceID: face_id,
-            m_Distance: distance,
-            m_UV: uv,
-            m_Collider: handle.into(),
+            m_point: point.coords,
+            m_normal: normal,
+            m_face_id: face_id,
+            m_distance: distance,
+            m_uv: uv,
+            m_collider: handle.into(),
         };
         unsafe {
             *out_hit = hit;
@@ -201,9 +356,9 @@ pub enum ForceMode
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
-struct RapierPosition {
+struct RapierTransform {
     rotation: Vector4<f32>,
-    position: Vector<f32>,
+    position: Vector<f32>
 }
 
 // PhysicsSolverData is a struct that holds all the data needed to solve physics.
@@ -261,7 +416,7 @@ struct SerializableCollisionEvent {
 impl PhysicsSolverData<'_> {
     fn solve(&mut self) -> Vec<SerializableCollisionEvent> {
         let (collision_send, collision_recv) = crossbeam::channel::unbounded();
-        let (contact_force_send, contact_force_recv) = crossbeam::channel::unbounded();
+        let (contact_force_send, _contact_force_recv) = crossbeam::channel::unbounded();
         let event_handler = ChannelEventCollector::new(collision_send, contact_force_send);
 
         self.physics_pipeline.step(

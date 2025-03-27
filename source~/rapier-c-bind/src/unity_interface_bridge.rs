@@ -1,4 +1,4 @@
-use std::ffi::{c_char, CStr, CString};
+use std::ffi::{c_char, CString};
 use std::os::raw::c_ulonglong;
 use log::{Level, Metadata, Record};
 
@@ -20,12 +20,12 @@ struct IUnityInterface {
 #[repr(C,packed)]
 #[derive(Default, Copy, Clone)]
 pub struct UnityInterfaceGUID {
-    pub m_GUIDHigh: ::std::os::raw::c_ulonglong,
-    pub m_GUIDLow: ::std::os::raw::c_ulonglong,
+    pub m_guidhigh: ::std::os::raw::c_ulonglong,
+    pub m_guidlow: ::std::os::raw::c_ulonglong,
 }
 
 // IUnityLog (0x9E7507fA5B444D5D, 0x92FB979515EA83FC)
-const IUnityLog_GUID: UnityInterfaceGUID =  UnityInterfaceGUID{m_GUIDHigh:0x9E7507fA5B444D5D_u64, m_GUIDLow:0x92FB979515EA83FC_u64};
+const IUNITY_LOG_GUID: UnityInterfaceGUID =  UnityInterfaceGUID{m_guidhigh:0x9E7507fA5B444D5D_u64, m_guidlow:0x92FB979515EA83FC_u64};
 #[repr(C,packed)]
 #[allow(non_snake_case)]
 struct IUnityLog
@@ -39,7 +39,7 @@ enum UnityLogType
     Error = 0,
     Warning = 2,
     Log = 3,
-    Exception = 4,
+    // Exception = 4,
 }
 
 struct UnityLogger;
@@ -51,7 +51,7 @@ impl log::Log for UnityLogger {
 
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
-            let logType = match record.metadata().level() {
+            let log_type = match record.metadata().level() {
                 Level::Error => UnityLogType::Error,
                 Level::Warn => UnityLogType::Warning,
                 Level::Info => UnityLogType::Log,
@@ -65,7 +65,7 @@ impl log::Log for UnityLogger {
             unsafe {
                 let log = (*UNITY_LOG_PTR).Log;
                 let val = CString::new(file).unwrap();
-                log(logType, message.as_ptr(), val.as_ptr(), line as i32);
+                log(log_type, message.as_ptr(), val.as_ptr(), line as i32);
             }
         }
     }
@@ -81,7 +81,7 @@ extern "system" fn UnityPluginLoad(unityInterfacesPtr: *mut IUnityInterfaces)
 {
     unsafe {
         let getInterface = (*unityInterfacesPtr).GetInterface;
-        UNITY_LOG_PTR = getInterface.expect("Couldn't get unity interface log")(&IUnityLog_GUID) as *const IUnityLog;
+        UNITY_LOG_PTR = getInterface.expect("Couldn't get unity interface log")(&IUNITY_LOG_GUID) as *const IUnityLog;
         let _ = log::set_logger(&UnityLogger).map(|()| log::set_max_level(Level::Info.to_level_filter()));
         log::trace!("Unity logger loaded");
     }
