@@ -91,7 +91,6 @@ extern "C" fn add_sphere_collider(radius:f32, mass:f32, is_sensor:bool) -> Seria
     psd.collider_set.insert(collider).into()
 }
 
-//  public static extern ColliderHandle add_capsule_collider(float half_height, float radius, float mass, bool is_sensor);
 #[unsafe(no_mangle)]
 extern "C" fn add_capsule_collider(half_height:f32, radius:f32, mass:f32, is_sensor:bool) -> SerializableColliderHandle {
     let psd = get_mutable_physics_solver();
@@ -187,14 +186,11 @@ extern "C" fn add_convex_mesh_collider(
     }
 }
 
+// RigidBody
 
 #[unsafe(no_mangle)]
 extern "C" fn add_rigid_body(collider: SerializableColliderHandle, rb_type: SerializableRigidBodyType, position_x:f32, position_y:f32, position_z:f32, rotation_x:f32, rotation_y:f32, rotation_z:f32, rotation_w:f32) -> SerializableRigidBodyHandle {
     let psd = get_mutable_physics_solver();
-    
-    // Convert from Unity's left-handed to Rapier's right-handed coordinate system
-    // This typically involves flipping the Z-axis components
-    // For quaternions, we can negate the x and y components
     let quat = Quaternion::new(rotation_w, rotation_x, rotation_y, rotation_z);
     
     // Convert to unit quaternion
