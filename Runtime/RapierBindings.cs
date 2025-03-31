@@ -13,16 +13,17 @@ namespace Packages.rapier4unity.Runtime
 	// Ensure DLL is only loaded in playmode
 	[InitializeOnLoad]
 	static class RapierBindingsInitializer {
+		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+		static void OnPlayModeLoad() => RapierBindings.LoadCalls();
+		
 		static RapierBindingsInitializer() {
 			EditorApplication.playModeStateChanged += state => {
-				if (state == PlayModeStateChange.EnteredPlayMode)
-					RapierBindings.LoadCalls();
 				if (state == PlayModeStateChange.EnteredEditMode)
 				{
 					if (RapierBindings.IsAvailable)
 					{
-						RapierBindings.UnloadCalls();
 						RapierBindings.Teardown();
+						RapierBindings.UnloadCalls();
 					}
 				}
 			};

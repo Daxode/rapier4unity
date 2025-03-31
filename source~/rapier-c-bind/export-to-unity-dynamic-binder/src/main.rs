@@ -57,13 +57,14 @@ fn main() -> Result<()> {
 
     writeln!(&mut writer, "")?;
     writeln!(&mut writer, "[BurstCompile]")?;
-    writeln!(&mut writer, "internal unsafe static class RapierBindings")?;
+    writeln!(&mut writer, "internal static unsafe class RapierBindings")?;
     writeln!(&mut writer, "{{")?;
     writeln!(&mut writer, "#if UNITY_STANDALONE_OSX")?;
     writeln!(&mut writer,"\tprivate const string DllName = \"librapier_c_bind.dylib\";")?;
     writeln!(&mut writer, "\tconst string k_DLLPath = \"Packages/rapier4unity/build_bin/librapier_c_bind.dylib\";")?;
     writeln!(&mut writer, "#else")?;
     writeln!(&mut writer,"\tprivate const string DllName = \"rapier_c_bind\";")?;
+    writeln!(&mut writer, "\tconst string k_DLLPath = \"Packages/rapier4unity/build_bin/rapier_c_bind.dll\";")?;
     writeln!(&mut writer, "#endif")?;
     writeln!(&mut writer,"\tprivate const CallingConvention Convention = CallingConvention.Cdecl;")?;
 
@@ -91,7 +92,7 @@ fn main() -> Result<()> {
         }
 
         for i in 0..visitor.function_names.len() {
-            load_calls.push(format!("{} = NativeLoader.dlsym(loaded_lib, \"{}\");", to_camel_case(&visitor.function_names[i]), visitor.function_names[i]));
+            load_calls.push(format!("{} = NativeLoader.GetFunction(loaded_lib, \"{}\");", to_camel_case(&visitor.function_names[i]), visitor.function_names[i]));
             raw_function_ptrs.push(format!("public IntPtr {};", to_camel_case(&visitor.function_names[i])));
         }
 
@@ -117,11 +118,10 @@ fn main() -> Result<()> {
         {{
             if (loaded_lib==IntPtr.Zero)
             {{
-                loaded_lib = NativeLoader.dlopen(Path.GetFullPath(k_DLLPath), NativeLoader.LoadMode.Lazy);
+                loaded_lib = NativeLoader.LoadLibrary(Path.GetFullPath(k_DLLPath));
                 if (loaded_lib == IntPtr.Zero)
                 {{
-                    IntPtr error = NativeLoader.dlerror();
-                    string errorMsg = Marshal.PtrToStringAnsi(error);
+                    var errorMsg = NativeLoader.GetLastErrorString();
                     Console.WriteLine($"Failed to load library: {{errorMsg}}");
                     return;
                 }}
@@ -140,7 +140,7 @@ fn main() -> Result<()> {
         public void unload_calls()
         {{
             if (loaded_lib != IntPtr.Zero)
-                NativeLoader.dlclose(loaded_lib);
+                NativeLoader.FreeLibrary(loaded_lib);
             loaded_lib = IntPtr.Zero;
             Debug.Log($"RapierBindingCalls Unloaded");
         }}

@@ -14,13 +14,14 @@ using Unity.Mathematics;
 #endif
 
 [BurstCompile]
-internal unsafe static class RapierBindings
+internal static unsafe class RapierBindings
 {
 #if UNITY_STANDALONE_OSX
 	private const string DllName = "librapier_c_bind.dylib";
 	const string k_DLLPath = "Packages/rapier4unity/build_bin/librapier_c_bind.dylib";
 #else
 	private const string DllName = "rapier_c_bind";
+	const string k_DLLPath = "Packages/rapier4unity/build_bin/rapier_c_bind.dll";
 #endif
 	private const CallingConvention Convention = CallingConvention.Cdecl;
 #if UNITY_EDITOR && !DISABLE_DYNAMIC_RAPIER_LOAD
@@ -98,6 +99,7 @@ internal unsafe static class RapierBindings
 
 #if UNITY_EDITOR && !DISABLE_DYNAMIC_RAPIER_LOAD
     // C# -> Rust
+    [StructLayout(LayoutKind.Sequential, Size=sizeof(ulong) * 512)]
     struct UnmanagedData
     {
         IntPtr loaded_lib;
@@ -105,40 +107,39 @@ internal unsafe static class RapierBindings
         {
             if (loaded_lib==IntPtr.Zero)
             {
-                loaded_lib = NativeLoader.dlopen(Path.GetFullPath(k_DLLPath), NativeLoader.LoadMode.Lazy);
+                loaded_lib = NativeLoader.LoadLibrary(Path.GetFullPath(k_DLLPath));
                 if (loaded_lib == IntPtr.Zero)
                 {
-                    IntPtr error = NativeLoader.dlerror();
-                    string errorMsg = Marshal.PtrToStringAnsi(error);
+                    var errorMsg = NativeLoader.GetLastErrorString();
                     Console.WriteLine($"Failed to load library: {errorMsg}");
                     return;
                 }
             }
 
             // Load function pointers
-            init = NativeLoader.dlsym(loaded_lib, "init");
-			helloWorld = NativeLoader.dlsym(loaded_lib, "hello_world");
-			teardown = NativeLoader.dlsym(loaded_lib, "teardown");
-			solve = NativeLoader.dlsym(loaded_lib, "solve");
-			freeCollisionEvents = NativeLoader.dlsym(loaded_lib, "free_collision_events");
-			setGravity = NativeLoader.dlsym(loaded_lib, "set_gravity");
-			setTimeStep = NativeLoader.dlsym(loaded_lib, "set_time_step");
-			addCuboidCollider = NativeLoader.dlsym(loaded_lib, "add_cuboid_collider");
-			addSphereCollider = NativeLoader.dlsym(loaded_lib, "add_sphere_collider");
-			addCapsuleCollider = NativeLoader.dlsym(loaded_lib, "add_capsule_collider");
-			addMeshCollider = NativeLoader.dlsym(loaded_lib, "add_mesh_collider");
-			addConvexMeshCollider = NativeLoader.dlsym(loaded_lib, "add_convex_mesh_collider");
-			addRigidBody = NativeLoader.dlsym(loaded_lib, "add_rigid_body");
-			getTransform = NativeLoader.dlsym(loaded_lib, "get_transform");
-			setTransformPosition = NativeLoader.dlsym(loaded_lib, "set_transform_position");
-			setTransformRotation = NativeLoader.dlsym(loaded_lib, "set_transform_rotation");
-			setLinearVelocity = NativeLoader.dlsym(loaded_lib, "set_linear_velocity");
-			setAngularVelocity = NativeLoader.dlsym(loaded_lib, "set_angular_velocity");
-			getLinearVelocity = NativeLoader.dlsym(loaded_lib, "get_linear_velocity");
-			getAngularVelocity = NativeLoader.dlsym(loaded_lib, "get_angular_velocity");
-			enableCCD = NativeLoader.dlsym(loaded_lib, "enable_CCD");
-			addForce = NativeLoader.dlsym(loaded_lib, "add_force");
-			castRay = NativeLoader.dlsym(loaded_lib, "cast_ray");
+            init = NativeLoader.GetFunction(loaded_lib, "init");
+			helloWorld = NativeLoader.GetFunction(loaded_lib, "hello_world");
+			teardown = NativeLoader.GetFunction(loaded_lib, "teardown");
+			solve = NativeLoader.GetFunction(loaded_lib, "solve");
+			freeCollisionEvents = NativeLoader.GetFunction(loaded_lib, "free_collision_events");
+			setGravity = NativeLoader.GetFunction(loaded_lib, "set_gravity");
+			setTimeStep = NativeLoader.GetFunction(loaded_lib, "set_time_step");
+			addCuboidCollider = NativeLoader.GetFunction(loaded_lib, "add_cuboid_collider");
+			addSphereCollider = NativeLoader.GetFunction(loaded_lib, "add_sphere_collider");
+			addCapsuleCollider = NativeLoader.GetFunction(loaded_lib, "add_capsule_collider");
+			addMeshCollider = NativeLoader.GetFunction(loaded_lib, "add_mesh_collider");
+			addConvexMeshCollider = NativeLoader.GetFunction(loaded_lib, "add_convex_mesh_collider");
+			addRigidBody = NativeLoader.GetFunction(loaded_lib, "add_rigid_body");
+			getTransform = NativeLoader.GetFunction(loaded_lib, "get_transform");
+			setTransformPosition = NativeLoader.GetFunction(loaded_lib, "set_transform_position");
+			setTransformRotation = NativeLoader.GetFunction(loaded_lib, "set_transform_rotation");
+			setLinearVelocity = NativeLoader.GetFunction(loaded_lib, "set_linear_velocity");
+			setAngularVelocity = NativeLoader.GetFunction(loaded_lib, "set_angular_velocity");
+			getLinearVelocity = NativeLoader.GetFunction(loaded_lib, "get_linear_velocity");
+			getAngularVelocity = NativeLoader.GetFunction(loaded_lib, "get_angular_velocity");
+			enableCCD = NativeLoader.GetFunction(loaded_lib, "enable_CCD");
+			addForce = NativeLoader.GetFunction(loaded_lib, "add_force");
+			castRay = NativeLoader.GetFunction(loaded_lib, "cast_ray");
         }
 
         // Raw function pointers
@@ -172,7 +173,7 @@ internal unsafe static class RapierBindings
         public void unload_calls()
         {
             if (loaded_lib != IntPtr.Zero)
-                NativeLoader.dlclose(loaded_lib);
+                NativeLoader.FreeLibrary(loaded_lib);
             loaded_lib = IntPtr.Zero;
             Debug.Log($"RapierBindingCalls Unloaded");
         }
@@ -222,4 +223,5 @@ internal unsafe static class RapierBindings
             unityLogPtr = UnityRapierBridge.GetDefaultUnityLogger();
         }
     }
+
 }
