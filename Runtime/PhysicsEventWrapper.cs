@@ -4,7 +4,6 @@ using Packages.rapier4unity.Runtime;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
-using UnityEditor;
 using UnityEngine;
 using UnityEngine.Assertions;
 using UnityEngine.Events;
@@ -17,11 +16,33 @@ namespace Packages.rapier4unity.Runtime
 	/// This class is used to wrap the physics event system.
 	/// Everything from OnTriggerEnter to OnJointBreak is wrapped here.
 	/// </summary>
-	[InitializeOnLoad]
+	#if UNITY_EDITOR
+	[UnityEditor.InitializeOnLoad]
+	#endif
 	public static class PhysicsEventWrapper
 	{
+#if UNITY_EDITOR
 		static PhysicsEventWrapper()
 		{
+			// Ensure that we teardown the physics bindings when exiting play mode
+			UnityEditor.EditorApplication.playModeStateChanged += state => {
+				if (state == UnityEditor.PlayModeStateChange.EnteredEditMode)
+				{
+					if (RapierBindings.IsAvailable)
+					{
+						RapierBindings.Teardown();
+						RapierBindings.UnloadCalls();
+					}
+				}
+			};
+		}
+#endif
+		
+		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+		static void SetupPlayerLoop()
+		{
+			RapierBindings.LoadCalls();
+			
 			// Get the current player loop
 			PlayerLoopSystem loop = PlayerLoop.GetCurrentPlayerLoop();
 			for (int i = 0; i < loop.subSystemList.Length; i++)

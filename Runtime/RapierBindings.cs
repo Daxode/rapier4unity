@@ -1,35 +1,10 @@
 using System;
-using System.IO;
 using System.Runtime.InteropServices;
-using Unity.Burst;
 using Unity.Mathematics;
-using UnityEditor;
 using UnityEngine;
 
 namespace Packages.rapier4unity.Runtime
 {
-
-	
-	// Ensure DLL is only loaded in playmode
-	[InitializeOnLoad]
-	static class RapierBindingsInitializer {
-		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-		static void OnPlayModeLoad() => RapierBindings.LoadCalls();
-		
-		static RapierBindingsInitializer() {
-			EditorApplication.playModeStateChanged += state => {
-				if (state == PlayModeStateChange.EnteredEditMode)
-				{
-					if (RapierBindings.IsAvailable)
-					{
-						RapierBindings.Teardown();
-						RapierBindings.UnloadCalls();
-					}
-				}
-			};
-		}
-	}
-     
 	public struct RapierRaycastHit
 	{
 		internal Vector3 m_Point;
