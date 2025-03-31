@@ -109,6 +109,7 @@ fn main() -> Result<()> {
     writeln!(&mut writer, r#"
 #if UNITY_EDITOR && !DISABLE_DYNAMIC_RAPIER_LOAD
     // C# -> Rust
+    [StructLayout(LayoutKind.Sequential, Size=sizeof(ulong) * 512)]
     struct UnmanagedData
     {{
         IntPtr loaded_lib;
@@ -116,7 +117,7 @@ fn main() -> Result<()> {
         {{
             if (loaded_lib==IntPtr.Zero)
             {{
-                loaded_lib = NativeLoader.dlopen(Path.GetFullPath(k_DLLPath), NativeLoader.LoadMode.Lazy); // TODO: this won't work for builds and Unity Package Manager location
+                loaded_lib = NativeLoader.dlopen(Path.GetFullPath(k_DLLPath), NativeLoader.LoadMode.Lazy);
                 if (loaded_lib == IntPtr.Zero)
                 {{
                     IntPtr error = NativeLoader.dlerror();

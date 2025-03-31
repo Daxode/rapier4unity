@@ -11,3 +11,6 @@ mv target/x86_64-pc-windows-msvc/debug/rapier_c_bind.dll ../../build_bin/
 mv target/x86_64-pc-windows-msvc/debug/rapier_c_bind.pdb ../../build_bin/
 mv target/x86_64-pc-windows-msvc/debug/unitybridge.dll ../../build_bin/
 mv target/x86_64-pc-windows-msvc/debug/unitybridge.pdb ../../build_bin/
+
+# Generate C# bindings
+cargo run -- ./rapierbind/src

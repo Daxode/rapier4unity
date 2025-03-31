@@ -11,9 +11,12 @@ namespace Packages.rapier4unity.Runtime
         [Flags]
         public enum LoadMode : int
         {
-            Lazy = 0x1,		// Only resolve symbols as needed
-            Now = 0x2,		// Resolve all symbols immediately
-            Global = 0x8	// Symbols in this library are available to libraries loaded after this one
+            /// Only resolve symbols as needed
+            Lazy = 0x1,		
+            /// Resolve all symbols immediately
+            Now = 0x2,		
+            /// Symbols in this library are available to libraries loaded after this one
+            Global = 0x8	
         }
 
         [DllImport(LibSystem)]
