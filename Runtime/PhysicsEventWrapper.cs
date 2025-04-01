@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
 using Packages.rapier4unity.Runtime;
+using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-using UnityEditor;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Assertions;
 using UnityEngine.Events;
@@ -15,14 +16,33 @@ namespace Packages.rapier4unity.Runtime
 	/// This class is used to wrap the physics event system.
 	/// Everything from OnTriggerEnter to OnJointBreak is wrapped here.
 	/// </summary>
-	[InitializeOnLoad]
+	#if UNITY_EDITOR
+	[UnityEditor.InitializeOnLoad]
+	#endif
 	public static class PhysicsEventWrapper
 	{
+#if UNITY_EDITOR
 		static PhysicsEventWrapper()
 		{
-			RapierBindings.init();
-			AssemblyReloadEvents.beforeAssemblyReload += RapierBindings.teardown;
-
+			// Ensure that we teardown the physics bindings when exiting play mode
+			UnityEditor.EditorApplication.playModeStateChanged += state => {
+				if (state == UnityEditor.PlayModeStateChange.EnteredEditMode)
+				{
+					if (RapierBindings.IsAvailable)
+					{
+						RapierBindings.Teardown();
+						RapierBindings.UnloadCalls();
+					}
+				}
+			};
+		}
+#endif
+		
+		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+		static void SetupPlayerLoop()
+		{
+			RapierBindings.LoadCalls();
+			
 			// Get the current player loop
 			PlayerLoopSystem loop = PlayerLoop.GetCurrentPlayerLoop();
 			for (int i = 0; i < loop.subSystemList.Length; i++)
@@ -115,13 +135,13 @@ public class RapierLoop
 	public static void AddForceWithMode(Rigidbody rigidbody, Vector3 force, ForceMode mode)
 	{
 		RigidBodyHandle handle = rigidbodyToHandle[rigidbody];
-		RapierBindings.add_force(handle, force.x, force.y, force.z, mode);
+		RapierBindings.AddForce(handle, force.x, force.y, force.z, mode);
 	}
 
 	public static void AddForce(Rigidbody rigidbody, Vector3 force)
 	{
 		RigidBodyHandle handle = rigidbodyToHandle[rigidbody];
-		RapierBindings.add_force(handle, force.x, force.y, force.z, ForceMode.Force);
+		RapierBindings.AddForce(handle, force.x, force.y, force.z, ForceMode.Force);
 	}
 
 
@@ -138,7 +158,7 @@ public class RapierLoop
 
 	public static bool Raycast(Ray ray, out RaycastHit hit)
 	{
-		bool did_hit = RapierBindings.cast_ray(ray.origin.x, ray.origin.y, ray.origin.z, ray.direction.x, ray.direction.y, ray.direction.z, out RapierBindings.RapierRaycastHit rapierHit);
+		bool did_hit = BindingExtensions.CastRay(ray.origin.x, ray.origin.y, ray.origin.z, ray.direction.x, ray.direction.y, ray.direction.z, out RapierRaycastHit rapierHit);
 		if (!did_hit)
 		{
 			hit = new RaycastHit();
@@ -159,9 +179,9 @@ public class RapierLoop
 
 
 	// Called in the beginning of every frame, this ensures that all colliders and rigidbodies are initialized
-	public static void Initialization()
+	public static unsafe void Initialization()
 	{
-		if (!Application.isPlaying)
+		if (!Application.isPlaying || !RapierBindings.IsAvailable)
 			return;
 
 		foreach (Collider collider in Object.FindObjectsByType<Collider>(FindObjectsSortMode.None))
@@ -176,7 +196,7 @@ public class RapierLoop
 				{
 					case BoxCollider boxCollider:
 						{
-							ColliderHandle newColliderHandle = RapierBindings.add_cuboid_collider(
+							ColliderHandle newColliderHandle = RapierBindings.AddCuboidCollider(
 								transformScale.x * boxCollider.size.x / 2,
 								transformScale.y * boxCollider.size.y / 2,
 								transformScale.z * boxCollider.size.z / 2,
@@ -188,7 +208,7 @@ public class RapierLoop
 						}
 					case SphereCollider sphereCollider:
 						{
-							ColliderHandle newColliderHandle = RapierBindings.add_sphere_collider(
+							ColliderHandle newColliderHandle = RapierBindings.AddSphereCollider(
 								transformScale.x * sphereCollider.radius,
 								potentialRigidbody == null ? 0 : potentialRigidbody.mass,
 								sphereCollider.isTrigger);
@@ -198,7 +218,7 @@ public class RapierLoop
 						}
 					case CapsuleCollider capsuleCollider:
 						{
-							ColliderHandle newColliderHandle = RapierBindings.add_capsule_collider(
+							ColliderHandle newColliderHandle = RapierBindings.AddCapsuleCollider(
 								transformScale.x * capsuleCollider.radius,
 								transformScale.y * (capsuleCollider.height / 2) - (transformScale.x * capsuleCollider.radius),
 								potentialRigidbody == null ? 0 : potentialRigidbody.mass,
@@ -220,23 +240,19 @@ public class RapierLoop
 							// Get vertex data
 							Vector3[] vertices = mesh.vertices;
 							Vector3 scale = collider.transform.localScale;
-							float[] verticesFlat = new float[vertices.Length * 3];
+							NativeArray<float3> verticesFlat = new NativeArray<float3>(vertices.Length, Allocator.Temp);
 
 							// Apply local scale to vertices
 							for (int i = 0; i < vertices.Length; i++)
-							{
-								verticesFlat[i * 3] = vertices[i].x * scale.x;
-								verticesFlat[i * 3 + 1] = vertices[i].y * scale.y;
-								verticesFlat[i * 3 + 2] = vertices[i].z * scale.z;
-							}
+								verticesFlat[i] = (float3)vertices[i] * scale;
 
 							ColliderHandle newColliderHandle;
 
 							if (meshCollider.convex)
 							{
 								// Use convex hull for convex meshes (better performance)
-								newColliderHandle = RapierBindings.add_convex_mesh_collider(
-									verticesFlat, vertices.Length,
+								newColliderHandle = RapierBindings.AddConvexMeshCollider(
+									(float*)verticesFlat.GetUnsafeReadOnlyPtr(), (UIntPtr)vertices.Length,
 									potentialRigidbody == null ? 0 : potentialRigidbody.mass,
 									meshCollider.isTrigger);
 							}
@@ -244,15 +260,14 @@ public class RapierLoop
 							{
 								// Use trimesh for concave meshes
 								int[] triangles = mesh.triangles;
-								uint[] indicesFlat = new uint[triangles.Length];
+								var indicesFlat = new NativeArray<uint>(triangles.Length, Allocator.Temp);
 								for (int i = 0; i < triangles.Length; i++)
-								{
 									indicesFlat[i] = (uint)triangles[i];
-								}
 
-								newColliderHandle = RapierBindings.add_mesh_collider(
-									verticesFlat, vertices.Length,
-									indicesFlat, triangles.Length / 3,
+
+								newColliderHandle = RapierBindings.AddMeshCollider(
+									(float*)verticesFlat.GetUnsafeReadOnlyPtr(), (UIntPtr)vertices.Length,
+									(uint*)indicesFlat.GetUnsafeReadOnlyPtr(), (UIntPtr)(triangles.Length / 3),
 									potentialRigidbody == null ? 0 : potentialRigidbody.mass,
 									meshCollider.isTrigger);
 							}
@@ -313,7 +328,7 @@ public class RapierLoop
 				// In Rapier, we need to add a fixed rigidbody, so we can simulate dynamic object interacting with static objects
 				if (potentialRigidbody == null && colliderToHandle.TryGetValue(collider, out ColliderHandle colliderHandle))
 				{
-					fixedRigidbodies[collider] = RapierBindings.add_rigid_body(
+					fixedRigidbodies[collider] = RapierBindings.AddRigidBody(
 						colliderHandle,
 						RigidBodyType.Fixed,
 						collider.transform.position.x,
@@ -336,7 +351,7 @@ public class RapierLoop
 				Assert.AreEqual(colliders.Length, 1, "Rigidbody must have exactly one collider for the moment");
 				ColliderHandle colliderHandle = colliderToHandle[colliders[0]];
 				Transform trs = rigidbody.transform;
-				rigidbodyToHandle[rigidbody] = RapierBindings.add_rigid_body(
+				rigidbodyToHandle[rigidbody] = RapierBindings.AddRigidBody(
 					colliderHandle,
 					RigidBodyType.Dynamic,
 					trs.position.x,
@@ -347,7 +362,8 @@ public class RapierLoop
 					trs.rotation.z,
 					trs.rotation.w);
 			}
-			RapierBindings.enable_CCD(rigidbodyToHandle[rigidbody], rigidbody.collisionDetectionMode == CollisionDetectionMode.Continuous);
+			if (rigidbody.collisionDetectionMode == CollisionDetectionMode.Continuous)
+				RapierBindings.EnableCCD(rigidbodyToHandle[rigidbody], true);
 		}
 
 	}
@@ -358,13 +374,15 @@ public class RapierLoop
 	public static void FixedUpdate()
 	{
 		// Only run in play mode
-		if (!Application.isPlaying)
+		if (!Application.isPlaying || !RapierBindings.IsAvailable)
 			return;
 
 		unsafe
 		{
 			// Solve physics and get collision events
-			RawArray<CollisionEvent>* eventsPtrToArray = RapierBindings.solve();
+			RawArray<CollisionEvent>* eventsPtrToArray = RapierBindings.Solve();
+			if (eventsPtrToArray == null)
+				return;
 
 			// Handle collision events
 			for (int i = 0; i < eventsPtrToArray->length; i++)
@@ -413,21 +431,20 @@ public class RapierLoop
 						stay.Invoke(collider1);
 				}
 			}
-			RapierBindings.free_collision_events(eventsPtrToArray);
+			RapierBindings.FreeCollisionEvents(eventsPtrToArray);
 		}
 
 		// Update GameObject positions of GameObjects with RigidBody component
 		foreach (Rigidbody rigidbody in Object.FindObjectsByType<Rigidbody>(FindObjectsSortMode.None))
 		{
 			RigidBodyHandle handle = rigidbodyToHandle[rigidbody];
-			RapierTransform position = RapierBindings.get_transform(handle);
+			RapierTransform position = RapierBindings.GetTransform(handle);
 			rigidbody.transform.SetPositionAndRotation(position.position, position.rotation);
 		}
 
 		// Update fixed rigidbodies
 		foreach ((Collider collider, RigidBodyHandle rbhandle) in fixedRigidbodies)
 		{
-
 		}
 	}
 }

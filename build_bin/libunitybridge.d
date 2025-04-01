@@ -1,0 +1,1 @@
+/Users/daniel.andersen/dev/personal/Multiformer/Packages/rapier4unity/source~/rapier-c-bind/target/debug/libunitybridge.dylib: /Users/daniel.andersen/dev/personal/Multiformer/Packages/rapier4unity/source~/rapier-c-bind/unitybridge/src/lib.rs
