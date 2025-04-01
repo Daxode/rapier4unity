@@ -94,6 +94,7 @@ public class PhysicsPostProcessor
                                 var newMethodReference = m_AssemblyMainModule.ImportReference(addForce);
                                 Patch.OutputDebugString($"Method: {GetMethodSignature(methodReference)} -> {GetMethodSignature(newMethodReference)}");
                                 instruction.Operand = newMethodReference;
+                                instruction.OpCode = OpCodes.Call;
                             }
                             else if (methodReference.Parameters.Count == 2)
                             {
@@ -101,6 +102,7 @@ public class PhysicsPostProcessor
                                 var newMethodReference = m_AssemblyMainModule.ImportReference(addForce);
                                 Patch.OutputDebugString($"Method: {GetMethodSignature(methodReference)} -> {GetMethodSignature(newMethodReference)}");
                                 instruction.Operand = newMethodReference;
+                                instruction.OpCode = OpCodes.Call;
                             }
 
                             anythingChanged = true;

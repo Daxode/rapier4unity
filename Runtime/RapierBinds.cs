@@ -16,12 +16,17 @@ using Unity.Mathematics;
 [BurstCompile]
 internal static unsafe class RapierBindings
 {
-#if UNITY_STANDALONE_OSX
-	private const string DllName = "librapier_c_bind.dylib";
-	const string k_DLLPath = "Packages/rapier4unity/build_bin/librapier_c_bind.dylib";
+
+#if !UNITY_EDITOR && (UNITY_IOS || UNITY_WEBGL)
+	private const string DllName = "__Internal";
 #else
 	private const string DllName = "rapier_c_bind";
-	const string k_DLLPath = "Packages/rapier4unity/build_bin/rapier_c_bind.dll";
+
+#if UNITY_EDITOR_OSX
+	const string k_DLLPath = "Packages/rapier4unity/build_bin/macOS/rapier_c_bind.bundle";
+#else
+	const string k_DLLPath = "Packages/rapier4unity/build_bin/Windows/rapier_c_bind.dll";
+#endif
 #endif
 	private const CallingConvention Convention = CallingConvention.Cdecl;
 #if UNITY_EDITOR && !DISABLE_DYNAMIC_RAPIER_LOAD
