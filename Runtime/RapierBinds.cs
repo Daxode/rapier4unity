@@ -39,6 +39,7 @@ internal static unsafe class RapierBindings
 	public static ColliderHandle AddConvexMeshCollider(float* verticesPtr, UIntPtr verticesCount, float mass, bool isSensor) => ((delegate* unmanaged[Cdecl]<float*, UIntPtr, float, bool, ColliderHandle>) data.Data.addConvexMeshCollider)(verticesPtr, verticesCount, mass, isSensor);
 	public static RigidBodyHandle AddRigidBody(ColliderHandle collider, RigidBodyType rbType, float positionX, float positionY, float positionZ, float rotationX, float rotationY, float rotationZ, float rotationW) => ((delegate* unmanaged[Cdecl]<ColliderHandle, RigidBodyType, float, float, float, float, float, float, float, RigidBodyHandle>) data.Data.addRigidBody)(collider, rbType, positionX, positionY, positionZ, rotationX, rotationY, rotationZ, rotationW);
 	public static void SetRigidBodyType(RigidBodyHandle rbHandle, RigidBodyType rbType) => ((delegate* unmanaged[Cdecl]<RigidBodyHandle, RigidBodyType, void>) data.Data.setRigidBodyType)(rbHandle, rbType);
+	public static void SetRigidBodyConstraints(RigidBodyHandle rbHandle, uint constraints) => ((delegate* unmanaged[Cdecl]<RigidBodyHandle, uint, void>) data.Data.setRigidBodyConstraints)(rbHandle, constraints);
 	public static RapierTransform GetTransform(RigidBodyHandle rbHandle) => ((delegate* unmanaged[Cdecl]<RigidBodyHandle, RapierTransform>) data.Data.getTransform)(rbHandle);
 	public static void SetTransformPosition(RigidBodyHandle rbHandle, float positionX, float positionY, float positionZ) => ((delegate* unmanaged[Cdecl]<RigidBodyHandle, float, float, float, void>) data.Data.setTransformPosition)(rbHandle, positionX, positionY, positionZ);
 	public static void SetTransformRotation(RigidBodyHandle rbHandle, float rotationX, float rotationY, float rotationZ, float rotationW) => ((delegate* unmanaged[Cdecl]<RigidBodyHandle, float, float, float, float, void>) data.Data.setTransformRotation)(rbHandle, rotationX, rotationY, rotationZ, rotationW);
@@ -80,6 +81,8 @@ internal static unsafe class RapierBindings
 	public static extern unsafe RigidBodyHandle AddRigidBody(ColliderHandle collider, RigidBodyType rbType, float positionX, float positionY, float positionZ, float rotationX, float rotationY, float rotationZ, float rotationW);
 	[DllImport(DllName, CallingConvention = Convention, EntryPoint="set_rigid_body_type")]
 	public static extern unsafe void SetRigidBodyType(RigidBodyHandle rbHandle, RigidBodyType rbType);
+	[DllImport(DllName, CallingConvention = Convention, EntryPoint="set_rigid_body_constraints")]
+	public static extern unsafe void SetRigidBodyConstraints(RigidBodyHandle rbHandle, uint constraints);
 	[DllImport(DllName, CallingConvention = Convention, EntryPoint="get_transform")]
 	public static extern unsafe RapierTransform GetTransform(RigidBodyHandle rbHandle);
 	[DllImport(DllName, CallingConvention = Convention, EntryPoint="set_transform_position")]
@@ -140,6 +143,7 @@ internal static unsafe class RapierBindings
 			addConvexMeshCollider = NativeLoader.GetFunction(loaded_lib, "add_convex_mesh_collider");
 			addRigidBody = NativeLoader.GetFunction(loaded_lib, "add_rigid_body");
 			setRigidBodyType = NativeLoader.GetFunction(loaded_lib, "set_rigid_body_type");
+			setRigidBodyConstraints = NativeLoader.GetFunction(loaded_lib, "set_rigid_body_constraints");
 			getTransform = NativeLoader.GetFunction(loaded_lib, "get_transform");
 			setTransformPosition = NativeLoader.GetFunction(loaded_lib, "set_transform_position");
 			setTransformRotation = NativeLoader.GetFunction(loaded_lib, "set_transform_rotation");
@@ -169,6 +173,7 @@ internal static unsafe class RapierBindings
 		public IntPtr addConvexMeshCollider;
 		public IntPtr addRigidBody;
 		public IntPtr setRigidBodyType;
+		public IntPtr setRigidBodyConstraints;
 		public IntPtr getTransform;
 		public IntPtr setTransformPosition;
 		public IntPtr setTransformRotation;

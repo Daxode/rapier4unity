@@ -1,4 +1,5 @@
 mod handles;
+mod utils;
 use crate::handles::{
     SerializableColliderHandle, SerializableRigidBodyHandle, SerializableRigidBodyType,
 };
@@ -7,6 +8,9 @@ use rapier3d::na::{Isometry, Quaternion, UnitQuaternion, Vector2, Vector3, Vecto
 use rapier3d::prelude::*;
 use std::mem;
 use unitybridge::{AssignUnityLogger, IUnityLog};
+use utils::{
+    cancel_axis_velocity, locked_axes_to_unity_constraints, unity_constraints_to_locked_axes,
+};
 
 static mut PHYSIC_SOLVER_DATA: Option<PhysicsSolverData> = None;
 
@@ -283,6 +287,21 @@ extern "C" fn set_rigid_body_type(
     }
 
     rb.set_body_type(rb_type, true);
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn set_rigid_body_constraints(rb_handle: SerializableRigidBodyHandle, constraints: u32) {
+    let psd = get_mutable_physics_solver();
+    let rb = psd.rigid_body_set.get_mut(rb_handle.into()).unwrap();
+
+    // If the constraints are the same, do nothing
+    if locked_axes_to_unity_constraints(rb.locked_axes()) == constraints {
+        return;
+    }
+
+    let locks = unity_constraints_to_locked_axes(constraints);
+    rb.set_locked_axes(locks, false);
+    cancel_axis_velocity(locks, rb);
 }
 
 #[unsafe(no_mangle)]

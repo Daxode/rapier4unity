@@ -431,8 +431,12 @@ public class RapierLoop
 					trs.rotation.z,
 					trs.rotation.w);
 			}
-			RapierBindings.SetRigidBodyType(rigidbodyToHandle[rigidbody], rigidbody.isKinematic ? RigidBodyType.KinematicPositionBased : RigidBodyType.Dynamic);
-			RapierBindings.EnableCCD(rigidbodyToHandle[rigidbody], rigidbody.collisionDetectionMode == CollisionDetectionMode.Continuous);
+			RigidBodyHandle handle = rigidbodyToHandle[rigidbody];
+			RapierBindings.SetRigidBodyType(handle, rigidbody.isKinematic ? RigidBodyType.KinematicPositionBased : RigidBodyType.Dynamic);
+
+			// If we are sleeping we likely don't need to worry about updating this
+			RapierBindings.EnableCCD(handle, rigidbody.collisionDetectionMode == CollisionDetectionMode.Continuous);
+			RapierBindings.SetRigidBodyConstraints(handle, (uint)rigidbody.constraints);
 		}
 	}
 
