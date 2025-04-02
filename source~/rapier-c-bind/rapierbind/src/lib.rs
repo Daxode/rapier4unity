@@ -439,10 +439,11 @@ extern "C" fn add_torque(
     let mut angvel = rb.angvel().clone();
     match mode {
         ForceMode::Force => {
-            angvel += vector![torque_x, torque_y, torque_z] * psd.integration_parameters.dt;
+            angvel +=
+                vector![torque_x, torque_y, torque_z] * psd.integration_parameters.dt / rb.mass();
         }
         ForceMode::Impulse => {
-            angvel += vector![torque_x, torque_y, torque_z];
+            angvel += vector![torque_x, torque_y, torque_z] / rb.mass();
         }
         ForceMode::VelocityChange => {
             angvel += vector![torque_x, torque_y, torque_z];
