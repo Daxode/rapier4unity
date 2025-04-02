@@ -16,16 +16,17 @@ namespace Packages.rapier4unity.Runtime
 	/// This class is used to wrap the physics event system.
 	/// Everything from OnTriggerEnter to OnJointBreak is wrapped here.
 	/// </summary>
-	#if UNITY_EDITOR
+#if UNITY_EDITOR
 	[UnityEditor.InitializeOnLoad]
-	#endif
+#endif
 	public static class PhysicsEventWrapper
 	{
 #if UNITY_EDITOR
 		static PhysicsEventWrapper()
 		{
 			// Ensure that we teardown the physics bindings when exiting play mode
-			UnityEditor.EditorApplication.playModeStateChanged += state => {
+			UnityEditor.EditorApplication.playModeStateChanged += state =>
+			{
 				if (state == UnityEditor.PlayModeStateChange.EnteredEditMode)
 				{
 					if (RapierBindings.IsAvailable)
@@ -37,12 +38,12 @@ namespace Packages.rapier4unity.Runtime
 			};
 		}
 #endif
-		
+
 		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
 		static void SetupPlayerLoop()
 		{
 			RapierBindings.LoadCalls();
-			
+
 			// Get the current player loop
 			PlayerLoopSystem loop = PlayerLoop.GetCurrentPlayerLoop();
 			for (int i = 0; i < loop.subSystemList.Length; i++)
@@ -142,6 +143,74 @@ public class RapierLoop
 	{
 		RigidBodyHandle handle = rigidbodyToHandle[rigidbody];
 		RapierBindings.AddForce(handle, force.x, force.y, force.z, ForceMode.Force);
+	}
+
+	public static void AddTorque(Rigidbody rigidbody, Vector3 torque)
+	{
+		RigidBodyHandle handle = rigidbodyToHandle[rigidbody];
+		RapierBindings.AddTorque(handle, torque.x, torque.y, torque.z, ForceMode.Force);
+	}
+
+	public static void AddTorqueWithMode(Rigidbody rigidbody, Vector3 torque, ForceMode mode)
+	{
+		RigidBodyHandle handle = rigidbodyToHandle[rigidbody];
+		RapierBindings.AddTorque(handle, torque.x, torque.y, torque.z, mode);
+	}
+
+	public static void MovePosition(Rigidbody rigidbody, Vector3 position)
+	{
+		if (!rigidbody.isKinematic)
+		{
+			Debug.LogError("MovePosition is not supported for non-kinematic rigidbodies. Apply forces instead or set the rigidbody to kinematic.");
+			return;
+		}
+
+		RigidBodyHandle handle = rigidbodyToHandle[rigidbody];
+		RapierBindings.SetTransformPosition(handle, position.x, position.y, position.z);
+	}
+
+	public static void MoveRotation(Rigidbody rigidbody, Quaternion rotation)
+	{
+		if (!rigidbody.isKinematic)
+		{
+			Debug.LogError("MovePosition is not supported for non-kinematic rigidbodies. Apply forces instead or set the rigidbody to kinematic.");
+			return;
+		}
+
+		RigidBodyHandle handle = rigidbodyToHandle[rigidbody];
+		RapierBindings.SetTransformRotation(handle, rotation.x, rotation.y, rotation.z, rotation.w);
+	}
+
+	public static void Move(Rigidbody rigidbody, Vector3 position, Quaternion rotation)
+	{
+		if (!rigidbody.isKinematic)
+		{
+			Debug.LogError("MovePosition is not supported for non-kinematic rigidbodies. Apply forces instead or set the rigidbody to kinematic.");
+			return;
+		}
+
+		RigidBodyHandle handle = rigidbodyToHandle[rigidbody];
+		RapierBindings.SetTransform(handle, position.x, position.y, position.z, rotation.x, rotation.y, rotation.z, rotation.w);
+	}
+
+	public static void AddRelativeForce(Rigidbody rigidbody, Vector3 force)
+	{
+		throw new NotImplementedException("AddRelativeForce is not supported in Rapier4Unity. Use AddForce instead.");
+	}
+
+	public static void AddRelativeForceWithMode(Rigidbody rigidbody, Vector3 force, ForceMode mode)
+	{
+		throw new NotImplementedException("AddRelativeForce is not supported in Rapier4Unity. Use AddForce instead.");
+	}
+
+	public static void AddRelativeTorque(Rigidbody rigidbody, Vector3 torque)
+	{
+		throw new NotImplementedException("AddRelativeTorque is not supported in Rapier4Unity. Use AddTorque instead.");
+	}
+
+	public static void AddRelativeTorqueWithMode(Rigidbody rigidbody, Vector3 torque, ForceMode mode)
+	{
+		throw new NotImplementedException("AddRelativeTorque is not supported in Rapier4Unity. Use AddTorque instead.");
 	}
 
 
@@ -362,10 +431,9 @@ public class RapierLoop
 					trs.rotation.z,
 					trs.rotation.w);
 			}
-			if (rigidbody.collisionDetectionMode == CollisionDetectionMode.Continuous)
-				RapierBindings.EnableCCD(rigidbodyToHandle[rigidbody], true);
+			RapierBindings.SetRigidBodyType(rigidbodyToHandle[rigidbody], rigidbody.isKinematic ? RigidBodyType.KinematicPositionBased : RigidBodyType.Dynamic);
+			RapierBindings.EnableCCD(rigidbodyToHandle[rigidbody], rigidbody.collisionDetectionMode == CollisionDetectionMode.Continuous);
 		}
-
 	}
 
 	// Called at the end of the FixedUpdate loop

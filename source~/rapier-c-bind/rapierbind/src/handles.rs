@@ -13,7 +13,7 @@ impl From<ColliderHandle> for SerializableColliderHandle {
         let val = value.into_raw_parts();
         SerializableColliderHandle {
             index: val.0,
-            generation: val.1
+            generation: val.1,
         }
     }
 }
@@ -23,7 +23,6 @@ impl From<SerializableColliderHandle> for ColliderHandle {
         ColliderHandle::from_raw_parts(value.index, value.generation)
     }
 }
-
 
 // RigidBodyHandle is a handle to a rigid body.
 #[derive(Debug, Clone, Copy)]
@@ -38,7 +37,7 @@ impl From<RigidBodyHandle> for SerializableRigidBodyHandle {
         let val = value.into_raw_parts();
         SerializableRigidBodyHandle {
             index: val.0,
-            generation: val.1
+            generation: val.1,
         }
     }
 }
@@ -63,8 +62,12 @@ impl From<RigidBodyType> for SerializableRigidBodyType {
         match value {
             RigidBodyType::Dynamic => SerializableRigidBodyType::Dynamic,
             RigidBodyType::Fixed => SerializableRigidBodyType::Fixed,
-            RigidBodyType::KinematicPositionBased => SerializableRigidBodyType::KinematicPositionBased,
-            RigidBodyType::KinematicVelocityBased => SerializableRigidBodyType::KinematicVelocityBased,
+            RigidBodyType::KinematicPositionBased => {
+                SerializableRigidBodyType::KinematicPositionBased
+            }
+            RigidBodyType::KinematicVelocityBased => {
+                SerializableRigidBodyType::KinematicVelocityBased
+            }
         }
     }
 }
@@ -74,8 +77,12 @@ impl From<SerializableRigidBodyType> for RigidBodyType {
         match value {
             SerializableRigidBodyType::Dynamic => RigidBodyType::Dynamic,
             SerializableRigidBodyType::Fixed => RigidBodyType::Fixed,
-            SerializableRigidBodyType::KinematicPositionBased => RigidBodyType::KinematicPositionBased,
-            SerializableRigidBodyType::KinematicVelocityBased => RigidBodyType::KinematicVelocityBased,
+            SerializableRigidBodyType::KinematicPositionBased => {
+                RigidBodyType::KinematicPositionBased
+            }
+            SerializableRigidBodyType::KinematicVelocityBased => {
+                RigidBodyType::KinematicVelocityBased
+            }
         }
     }
 }
