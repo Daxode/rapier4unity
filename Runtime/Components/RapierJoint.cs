@@ -3,13 +3,6 @@ using UnityEngine;
 
 namespace RapierPhysics
 {
-    public enum JointType
-    {
-        Fixed,
-        Revolute,
-        Spherical
-    }
-
     /// <summary>
     ///     The base class for all joints.
     /// </summary>
