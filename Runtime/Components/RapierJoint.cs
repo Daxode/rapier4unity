@@ -10,13 +10,18 @@ namespace RapierPhysics
     {
         [Header("Joint Settings")]
         /// <summary>
-        /// The anchor rigidbody of the joint in world space.
+        /// The self collision flag. If false, the joint will not collide with itself.
+        /// </summary>
+        public bool SelfCollision = true;
+
+        /// <summary>
+        /// The anchor rigidbody, the primary body that this joint is attached to.
         /// </summary>
         /// 
         public Rigidbody Anchor;
 
         /// <summary>
-        /// The articulation rigidbody that this joint is attached to.
+        /// The articulation rigidbody that is attached to the anchor.
         /// </summary>
         public Rigidbody Mover;
 
@@ -29,11 +34,6 @@ namespace RapierPhysics
         /// The second anchor point in local space.
         /// </summary>
         public Vector3 Anchor2;
-
-        /// <summary>
-        /// The self collision flag. If false, the joint will not collide with itself.
-        /// </summary>
-        public bool SelfCollision = true;
 
         protected virtual void OnEnable()
         {
