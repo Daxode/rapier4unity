@@ -91,4 +91,12 @@ namespace Packages.rapier4unity.Runtime
 
 		public override string ToString() => $"Rotation: {rotation}, Position: {position}";
 	}
+
+	public struct ImpulseJointHandle
+	{
+		public uint index;
+		public uint generation;
+
+		public override string ToString() => $"Index: {index}, Generation: {generation}";
+	}
 }

@@ -1,12 +1,17 @@
 mod handles;
+mod utils;
 use crate::handles::{
     SerializableColliderHandle, SerializableRigidBodyHandle, SerializableRigidBodyType,
 };
+use handles::SerializableImpulseJointHandle;
 use rapier3d::crossbeam;
 use rapier3d::na::{Isometry, Quaternion, UnitQuaternion, Vector2, Vector3, Vector4};
 use rapier3d::prelude::*;
 use std::mem;
 use unitybridge::{AssignUnityLogger, IUnityLog};
+use utils::{
+    cancel_axis_velocity, locked_axes_to_unity_constraints, unity_constraints_to_locked_axes,
+};
 
 static mut PHYSIC_SOLVER_DATA: Option<PhysicsSolverData> = None;
 
@@ -269,6 +274,19 @@ extern "C" fn add_rigid_body(
 }
 
 #[unsafe(no_mangle)]
+extern "C" fn remove_rigid_body(rb_handle: SerializableRigidBodyHandle) {
+    let psd = get_mutable_physics_solver();
+    psd.rigid_body_set.remove(
+        rb_handle.into(),
+        &mut psd.island_manager,
+        &mut psd.collider_set,
+        &mut psd.impulse_joint_set,
+        &mut psd.multibody_joint_set,
+        true,
+    );
+}
+
+#[unsafe(no_mangle)]
 extern "C" fn set_rigid_body_type(
     rb_handle: SerializableRigidBodyHandle,
     rb_type: SerializableRigidBodyType,
@@ -283,6 +301,157 @@ extern "C" fn set_rigid_body_type(
     }
 
     rb.set_body_type(rb_type, true);
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn set_rigid_body_constraints(rb_handle: SerializableRigidBodyHandle, constraints: u32) {
+    let psd = get_mutable_physics_solver();
+    let rb = psd.rigid_body_set.get_mut(rb_handle.into()).unwrap();
+
+    // If the constraints are the same, do nothing
+    if locked_axes_to_unity_constraints(rb.locked_axes()) == constraints {
+        return;
+    }
+
+    let locks = unity_constraints_to_locked_axes(constraints);
+    rb.set_locked_axes(locks, false);
+    cancel_axis_velocity(locks, rb);
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn add_fixed_joint(
+    rb1_handle: SerializableRigidBodyHandle,
+    rb2_handle: SerializableRigidBodyHandle,
+    local_frame1_x: f32,
+    local_frame1_y: f32,
+    local_frame1_z: f32,
+    local_frame2_x: f32,
+    local_frame2_y: f32,
+    local_frame2_z: f32,
+    self_collision: bool,
+) -> SerializableImpulseJointHandle {
+    let psd = get_mutable_physics_solver();
+    let point1: Point<Real> = point![local_frame1_x, local_frame1_y, local_frame1_z];
+    let point2: Point<Real> = point![local_frame2_x, local_frame2_y, local_frame2_z];
+    let anchor_rb = psd.rigid_body_set.get(rb1_handle.into()).unwrap();
+    let mover_rb = psd.rigid_body_set.get(rb2_handle.into()).unwrap();
+    // Construct the local_frame for the first body
+    let local_frame1 =
+        Isometry::from_parts(Translation::from(point1), anchor_rb.position().rotation);
+    // Construct the local_frame for the second body
+    let local_frame2 =
+        Isometry::from_parts(Translation::from(point2), mover_rb.position().rotation);
+    let joint = FixedJointBuilder::new()
+        .local_frame1(local_frame1)
+        .local_frame2(local_frame2)
+        .contacts_enabled(self_collision);
+
+    psd.impulse_joint_set
+        .insert(rb1_handle.into(), rb2_handle.into(), joint, false)
+        .into()
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn add_spherical_joint(
+    rb1_handle: SerializableRigidBodyHandle,
+    rb2_handle: SerializableRigidBodyHandle,
+    local_frame1_x: f32,
+    local_frame1_y: f32,
+    local_frame1_z: f32,
+    local_frame2_x: f32,
+    local_frame2_y: f32,
+    local_frame2_z: f32,
+    self_collision: bool,
+) -> SerializableImpulseJointHandle {
+    let psd = get_mutable_physics_solver();
+    let point1: Point<Real> = point![local_frame1_x, local_frame1_y, local_frame1_z];
+    let point2: Point<Real> = point![local_frame2_x, local_frame2_y, local_frame2_z];
+    let anchor_rb = psd.rigid_body_set.get(rb1_handle.into()).unwrap();
+    let mover_rb = psd.rigid_body_set.get(rb2_handle.into()).unwrap();
+    // Construct the local_frame for the first body
+    let local_frame1 =
+        Isometry::from_parts(Translation::from(point1), anchor_rb.position().rotation);
+    // Construct the local_frame for the second body
+    let local_frame2 =
+        Isometry::from_parts(Translation::from(point2), mover_rb.position().rotation);
+    let joint = SphericalJointBuilder::new()
+        // .local_anchor1(point1)
+        // .local_anchor2(point2)
+        .local_frame1(local_frame1)
+        .local_frame2(local_frame2)
+        .contacts_enabled(self_collision);
+
+    psd.impulse_joint_set
+        .insert(rb1_handle.into(), rb2_handle.into(), joint, false)
+        .into()
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn add_revolute_joint(
+    rb1_handle: SerializableRigidBodyHandle,
+    rb2_handle: SerializableRigidBodyHandle,
+    axis_x: f32,
+    axis_y: f32,
+    axis_z: f32,
+    local_frame1_x: f32,
+    local_frame1_y: f32,
+    local_frame1_z: f32,
+    local_frame2_x: f32,
+    local_frame2_y: f32,
+    local_frame2_z: f32,
+    self_collision: bool,
+) -> SerializableImpulseJointHandle {
+    let psd = get_mutable_physics_solver();
+    let point1: Point<Real> = point![local_frame1_x, local_frame1_y, local_frame1_z];
+    let point2: Point<Real> = point![local_frame2_x, local_frame2_y, local_frame2_z];
+    let axis: UnitVector<Real> = UnitVector::new_normalize(vector![axis_x, axis_y, axis_z]);
+    let joint = RevoluteJointBuilder::new(axis)
+        .local_anchor1(point1)
+        .local_anchor2(point2)
+        .contacts_enabled(self_collision);
+
+    psd.impulse_joint_set
+        .insert(rb1_handle.into(), rb2_handle.into(), joint, false)
+        .into()
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn add_prismatic_joint(
+    rb1_handle: SerializableRigidBodyHandle,
+    rb2_handle: SerializableRigidBodyHandle,
+    axis_x: f32,
+    axis_y: f32,
+    axis_z: f32,
+    local_frame1_x: f32,
+    local_frame1_y: f32,
+    local_frame1_z: f32,
+    local_frame2_x: f32,
+    local_frame2_y: f32,
+    local_frame2_z: f32,
+    limit_min: f32,
+    limit_max: f32,
+    self_collision: bool,
+) -> SerializableImpulseJointHandle {
+    let psd = get_mutable_physics_solver();
+    let point1: Point<Real> = point![local_frame1_x, local_frame1_y, local_frame1_z];
+    let point2: Point<Real> = point![local_frame2_x, local_frame2_y, local_frame2_z];
+    let axis: UnitVector<Real> = UnitVector::new_normalize(vector![axis_x, axis_y, axis_z]);
+    let joint = PrismaticJointBuilder::new(axis)
+        .local_anchor1(point1)
+        .local_anchor2(point2)
+        .limits([limit_min, limit_max])
+        // If the anchor is kinematic, then don't collide with the other body
+        .contacts_enabled(self_collision);
+
+    psd.impulse_joint_set
+        .insert(rb1_handle.into(), rb2_handle.into(), joint, false)
+        .into()
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn remove_joint(handle: SerializableImpulseJointHandle) {
+    let psd = get_mutable_physics_solver();
+    psd.impulse_joint_set.remove(handle.into(), true);
 }
 
 #[unsafe(no_mangle)]
