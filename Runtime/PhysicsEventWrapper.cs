@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Packages.rapier4unity.Runtime;
+using RapierPhysics;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
@@ -130,8 +131,125 @@ public class RapierLoop
 	static Dictionary<ColliderHandle, Collider> handleToCollider = new();
 	static Dictionary<Collider, RigidBodyHandle> fixedRigidbodies = new();
 	static Dictionary<Collider, EventsForCollider> physicsEvents = new();
+	static Dictionary<RapierJoint, ImpulseJointHandle> joints = new();
 	static Dictionary<MonoBehaviour, EventsForMonoBehaviour> monoBehaviourEvents = new();
 	static HashSet<(Collider, Collider)> activeTriggerPairs = new();
+
+	public static void RegisterJoint(RapierJoint joint)
+	{
+		if (joints.ContainsKey(joint))
+			return;
+
+		// If the mover is kinematic, we cannot continue
+		if (joint.Mover.isKinematic)
+		{
+			Debug.LogError("Mover must not be kinematic for the joint to work properly.");
+			return;
+		}
+
+		// Make sure the rigidbodies are registered
+		if (!rigidbodyToHandle.ContainsKey(joint.Anchor))
+		{
+			AddRigidBody(joint.Anchor);
+		}
+
+		if (!rigidbodyToHandle.ContainsKey(joint.Mover))
+		{
+			AddRigidBody(joint.Mover);
+		}
+
+		RigidBodyHandle anchorHandle = rigidbodyToHandle[joint.Anchor];
+		RigidBodyHandle moverHandle = rigidbodyToHandle[joint.Mover];
+		ImpulseJointHandle jointHandle;
+		if (joint is RapierFixedJoint fixedJoint)
+		{
+
+			Vector3 anchor1 = Vector3.Scale(fixedJoint.Anchor1, fixedJoint.Anchor.transform.lossyScale);
+			Vector3 anchor2 = Vector3.Scale(fixedJoint.Anchor2, fixedJoint.Mover.transform.lossyScale);
+			jointHandle = RapierBindings.AddFixedJoint(
+				anchorHandle,
+				moverHandle,
+				anchor1.x,
+				anchor1.y,
+				anchor1.z,
+				anchor2.x,
+				anchor2.y,
+				anchor2.z,
+				fixedJoint.SelfCollision);
+		}
+		else if (joint is RapierSphericalJoint sphericalJoint)
+		{
+			Vector3 anchor1 = Vector3.Scale(sphericalJoint.Anchor1, sphericalJoint.Anchor.transform.lossyScale);
+			Vector3 anchor2 = Vector3.Scale(sphericalJoint.Anchor2, sphericalJoint.Mover.transform.lossyScale);
+			jointHandle = RapierBindings.AddSphericalJoint(
+				anchorHandle,
+				moverHandle,
+				anchor1.x,
+				anchor1.y,
+				anchor1.z,
+				anchor2.x,
+				anchor2.y,
+				anchor2.z,
+				sphericalJoint.SelfCollision);
+		}
+		// Check which kind of joint we need to create
+		else if (joint is RapierRevoluteJoint revoluteJoint)
+		{
+			Vector3 anchor1 = Vector3.Scale(revoluteJoint.Anchor1, revoluteJoint.Anchor.transform.lossyScale);
+			Vector3 anchor2 = Vector3.Scale(revoluteJoint.Anchor2, revoluteJoint.Mover.transform.lossyScale);
+			jointHandle = RapierBindings.AddRevoluteJoint(
+				anchorHandle,
+				moverHandle,
+				revoluteJoint.Axis.x,
+				revoluteJoint.Axis.y,
+				revoluteJoint.Axis.z,
+				anchor1.x,
+				anchor1.y,
+				anchor1.z,
+				anchor2.x,
+				anchor2.y,
+				anchor2.z,
+				revoluteJoint.SelfCollision);
+		}
+		else if (joint is RapierPrismaticJoint prismaticJoint)
+		{
+			Vector3 anchor1 = Vector3.Scale(prismaticJoint.Anchor1, prismaticJoint.Anchor.transform.lossyScale);
+			Vector3 anchor2 = Vector3.Scale(prismaticJoint.Anchor2, prismaticJoint.Mover.transform.lossyScale);
+			jointHandle = RapierBindings.AddPrismaticJoint(
+				anchorHandle,
+				moverHandle,
+				prismaticJoint.Axis.x,
+				prismaticJoint.Axis.y,
+				prismaticJoint.Axis.z,
+				anchor1.x,
+				anchor1.y,
+				anchor1.z,
+				anchor2.x,
+				anchor2.y,
+				anchor2.z,
+				prismaticJoint.Limits.x,
+				prismaticJoint.Limits.y,
+				prismaticJoint.SelfCollision);
+		}
+		else
+		{
+			Debug.LogError($"Unsupported joint type: {joint.GetType()}");
+			return;
+		}
+
+		joints[joint] = jointHandle;
+	}
+
+	public static void UnregisterJoint(RapierJoint joint)
+	{
+		if (!joints.ContainsKey(joint))
+			return;
+
+		// Remove joint handle
+		ImpulseJointHandle jointHandle = joints[joint];
+		RapierBindings.RemoveJoint(jointHandle);
+		joints.Remove(joint);
+	}
 
 	public static void AddForceWithMode(Rigidbody rigidbody, Vector3 force, ForceMode mode)
 	{
@@ -213,8 +331,6 @@ public class RapierLoop
 		throw new NotImplementedException("AddRelativeTorque is not supported in Rapier4Unity. Use AddTorque instead.");
 	}
 
-
-
 	public struct LocalRaycastHit
 	{
 		internal Vector3 m_Point;
@@ -253,191 +369,207 @@ public class RapierLoop
 		if (!Application.isPlaying || !RapierBindings.IsAvailable)
 			return;
 
+		// Find and add all colliders
 		foreach (Collider collider in Object.FindObjectsByType<Collider>(FindObjectsSortMode.None))
 		{
-			// Add Rapier Collider if it doesn't exist
-			if (!colliderToHandle.ContainsKey(collider))
+			AddCollider(collider);
+		}
+
+		// Find and add all rigidbodies
+		foreach (Rigidbody rigidbody in Object.FindObjectsByType<Rigidbody>(FindObjectsSortMode.None))
+		{
+			AddRigidBody(rigidbody);
+		}
+	}
+
+	private unsafe static void AddCollider(Collider collider)
+	{
+		// Add Rapier Collider if it doesn't exist
+		if (!colliderToHandle.ContainsKey(collider))
+		{
+			Rigidbody potentialRigidbody = collider.GetComponent<Rigidbody>();
+			Vector3 transformScale = collider.transform.localScale;
+
+			switch (collider)
 			{
-				Rigidbody potentialRigidbody = collider.GetComponent<Rigidbody>();
-				Vector3 transformScale = collider.transform.localScale;
+				case BoxCollider boxCollider:
+					{
+						ColliderHandle newColliderHandle = RapierBindings.AddCuboidCollider(
+							transformScale.x * boxCollider.size.x / 2,
+							transformScale.y * boxCollider.size.y / 2,
+							transformScale.z * boxCollider.size.z / 2,
+							potentialRigidbody == null ? 0 : potentialRigidbody.mass,
+							boxCollider.isTrigger);
 
-				switch (collider)
+						colliderToHandle[collider] = newColliderHandle;
+						handleToCollider[newColliderHandle] = collider;
+						break;
+					}
+				case SphereCollider sphereCollider:
+					{
+						ColliderHandle newColliderHandle = RapierBindings.AddSphereCollider(
+							transformScale.x * sphereCollider.radius,
+							potentialRigidbody == null ? 0 : potentialRigidbody.mass,
+							sphereCollider.isTrigger);
+						colliderToHandle[collider] = newColliderHandle;
+						handleToCollider[newColliderHandle] = collider;
+						break;
+					}
+				case CapsuleCollider capsuleCollider:
+					{
+						ColliderHandle newColliderHandle = RapierBindings.AddCapsuleCollider(
+							transformScale.x * capsuleCollider.radius,
+							transformScale.y * (capsuleCollider.height / 2) - (transformScale.x * capsuleCollider.radius),
+							potentialRigidbody == null ? 0 : potentialRigidbody.mass,
+							capsuleCollider.isTrigger);
+						colliderToHandle[collider] = newColliderHandle;
+						handleToCollider[newColliderHandle] = collider;
+						break;
+					}
+				case MeshCollider meshCollider:
+					{
+						// Make sure we have a valid mesh
+						Mesh mesh = meshCollider.sharedMesh;
+						if (mesh == null)
+						{
+							Debug.LogError($"MeshCollider on {collider.gameObject.name} has no mesh assigned!");
+							return;
+						}
+
+						// Get vertex data
+						Vector3[] vertices = mesh.vertices;
+						Vector3 scale = collider.transform.localScale;
+						NativeArray<float3> verticesFlat = new NativeArray<float3>(vertices.Length, Allocator.Temp);
+
+						// Apply local scale to vertices
+						for (int i = 0; i < vertices.Length; i++)
+							verticesFlat[i] = (float3)vertices[i] * scale;
+
+						ColliderHandle newColliderHandle;
+
+						if (meshCollider.convex)
+						{
+							// Use convex hull for convex meshes (better performance)
+							newColliderHandle = RapierBindings.AddConvexMeshCollider(
+								(float*)verticesFlat.GetUnsafeReadOnlyPtr(), (UIntPtr)vertices.Length,
+								potentialRigidbody == null ? 0 : potentialRigidbody.mass,
+								meshCollider.isTrigger);
+						}
+						else
+						{
+							// Use trimesh for concave meshes
+							int[] triangles = mesh.triangles;
+							var indicesFlat = new NativeArray<uint>(triangles.Length, Allocator.Temp);
+							for (int i = 0; i < triangles.Length; i++)
+								indicesFlat[i] = (uint)triangles[i];
+
+
+							newColliderHandle = RapierBindings.AddMeshCollider(
+								(float*)verticesFlat.GetUnsafeReadOnlyPtr(), (UIntPtr)vertices.Length,
+								(uint*)indicesFlat.GetUnsafeReadOnlyPtr(), (UIntPtr)(triangles.Length / 3),
+								potentialRigidbody == null ? 0 : potentialRigidbody.mass,
+								meshCollider.isTrigger);
+						}
+
+						colliderToHandle[collider] = newColliderHandle;
+						handleToCollider[newColliderHandle] = collider;
+						break;
+					}
+			}
+
+			// Add events for collider
+			EventsForCollider eventsForCollider = new EventsForCollider();
+
+			eventsForCollider.onTriggerEnter = new List<BasicEvent<Collider>>();
+			eventsForCollider.onTriggerExit = new List<BasicEvent<Collider>>();
+			eventsForCollider.onTriggerStay = new List<BasicEvent<Collider>>();
+
+			eventsForCollider.onCollisionEnter = new List<BasicEvent<Collision>>();
+			eventsForCollider.onCollisionExit = new List<BasicEvent<Collision>>();
+			eventsForCollider.onCollisionStay = new List<BasicEvent<Collision>>();
+
+			MonoBehaviour[] components = collider.gameObject.GetComponents<MonoBehaviour>();
+			foreach (MonoBehaviour component in components)
+			{
+				// Lookup events for MonoBehaviour, create if they don't exist
+				if (!monoBehaviourEvents.TryGetValue(component, out EventsForMonoBehaviour eventsForMonoBehaviour))
 				{
-					case BoxCollider boxCollider:
-						{
-							ColliderHandle newColliderHandle = RapierBindings.AddCuboidCollider(
-								transformScale.x * boxCollider.size.x / 2,
-								transformScale.y * boxCollider.size.y / 2,
-								transformScale.z * boxCollider.size.z / 2,
-								potentialRigidbody == null ? 0 : potentialRigidbody.mass,
-								boxCollider.isTrigger);
-							colliderToHandle[collider] = newColliderHandle;
-							handleToCollider[newColliderHandle] = collider;
-							break;
-						}
-					case SphereCollider sphereCollider:
-						{
-							ColliderHandle newColliderHandle = RapierBindings.AddSphereCollider(
-								transformScale.x * sphereCollider.radius,
-								potentialRigidbody == null ? 0 : potentialRigidbody.mass,
-								sphereCollider.isTrigger);
-							colliderToHandle[collider] = newColliderHandle;
-							handleToCollider[newColliderHandle] = collider;
-							break;
-						}
-					case CapsuleCollider capsuleCollider:
-						{
-							ColliderHandle newColliderHandle = RapierBindings.AddCapsuleCollider(
-								transformScale.x * capsuleCollider.radius,
-								transformScale.y * (capsuleCollider.height / 2) - (transformScale.x * capsuleCollider.radius),
-								potentialRigidbody == null ? 0 : potentialRigidbody.mass,
-								capsuleCollider.isTrigger);
-							colliderToHandle[collider] = newColliderHandle;
-							handleToCollider[newColliderHandle] = collider;
-							break;
-						}
-					case MeshCollider meshCollider:
-						{
-							// Make sure we have a valid mesh
-							Mesh mesh = meshCollider.sharedMesh;
-							if (mesh == null)
-							{
-								Debug.LogError($"MeshCollider on {collider.gameObject.name} has no mesh assigned!");
-								continue;
-							}
+					eventsForMonoBehaviour.onTriggerEnter = new BasicEvent<Collider>(component, "OnTriggerEnter");
+					eventsForMonoBehaviour.onTriggerExit = new BasicEvent<Collider>(component, "OnTriggerExit");
+					eventsForMonoBehaviour.onTriggerStay = new BasicEvent<Collider>(component, "OnTriggerStay");
 
-							// Get vertex data
-							Vector3[] vertices = mesh.vertices;
-							Vector3 scale = collider.transform.localScale;
-							NativeArray<float3> verticesFlat = new NativeArray<float3>(vertices.Length, Allocator.Temp);
+					eventsForMonoBehaviour.onCollisionEnter = new BasicEvent<Collision>(component, "OnCollisionEnter");
+					eventsForMonoBehaviour.onCollisionExit = new BasicEvent<Collision>(component, "OnCollisionExit");
+					eventsForMonoBehaviour.onCollisionStay = new BasicEvent<Collision>(component, "OnCollisionStay");
 
-							// Apply local scale to vertices
-							for (int i = 0; i < vertices.Length; i++)
-								verticesFlat[i] = (float3)vertices[i] * scale;
-
-							ColliderHandle newColliderHandle;
-
-							if (meshCollider.convex)
-							{
-								// Use convex hull for convex meshes (better performance)
-								newColliderHandle = RapierBindings.AddConvexMeshCollider(
-									(float*)verticesFlat.GetUnsafeReadOnlyPtr(), (UIntPtr)vertices.Length,
-									potentialRigidbody == null ? 0 : potentialRigidbody.mass,
-									meshCollider.isTrigger);
-							}
-							else
-							{
-								// Use trimesh for concave meshes
-								int[] triangles = mesh.triangles;
-								var indicesFlat = new NativeArray<uint>(triangles.Length, Allocator.Temp);
-								for (int i = 0; i < triangles.Length; i++)
-									indicesFlat[i] = (uint)triangles[i];
-
-
-								newColliderHandle = RapierBindings.AddMeshCollider(
-									(float*)verticesFlat.GetUnsafeReadOnlyPtr(), (UIntPtr)vertices.Length,
-									(uint*)indicesFlat.GetUnsafeReadOnlyPtr(), (UIntPtr)(triangles.Length / 3),
-									potentialRigidbody == null ? 0 : potentialRigidbody.mass,
-									meshCollider.isTrigger);
-							}
-
-							colliderToHandle[collider] = newColliderHandle;
-							handleToCollider[newColliderHandle] = collider;
-							break;
-						}
+					monoBehaviourEvents[component] = eventsForMonoBehaviour;
 				}
 
 				// Add events for collider
-				EventsForCollider eventsForCollider = new EventsForCollider();
+				if (eventsForMonoBehaviour.onTriggerEnter.IsValid)
+					eventsForCollider.onTriggerEnter.Add(eventsForMonoBehaviour.onTriggerEnter);
+				if (eventsForMonoBehaviour.onTriggerExit.IsValid)
+					eventsForCollider.onTriggerExit.Add(eventsForMonoBehaviour.onTriggerExit);
+				if (eventsForMonoBehaviour.onTriggerStay.IsValid)
+					eventsForCollider.onTriggerStay.Add(eventsForMonoBehaviour.onTriggerStay);
 
-				eventsForCollider.onTriggerEnter = new List<BasicEvent<Collider>>();
-				eventsForCollider.onTriggerExit = new List<BasicEvent<Collider>>();
-				eventsForCollider.onTriggerStay = new List<BasicEvent<Collider>>();
-
-				eventsForCollider.onCollisionEnter = new List<BasicEvent<Collision>>();
-				eventsForCollider.onCollisionExit = new List<BasicEvent<Collision>>();
-				eventsForCollider.onCollisionStay = new List<BasicEvent<Collision>>();
-
-				MonoBehaviour[] components = collider.gameObject.GetComponents<MonoBehaviour>();
-				foreach (MonoBehaviour component in components)
-				{
-					// Lookup events for MonoBehaviour, create if they don't exist
-					if (!monoBehaviourEvents.TryGetValue(component, out EventsForMonoBehaviour eventsForMonoBehaviour))
-					{
-						eventsForMonoBehaviour.onTriggerEnter = new BasicEvent<Collider>(component, "OnTriggerEnter");
-						eventsForMonoBehaviour.onTriggerExit = new BasicEvent<Collider>(component, "OnTriggerExit");
-						eventsForMonoBehaviour.onTriggerStay = new BasicEvent<Collider>(component, "OnTriggerStay");
-
-						eventsForMonoBehaviour.onCollisionEnter = new BasicEvent<Collision>(component, "OnCollisionEnter");
-						eventsForMonoBehaviour.onCollisionExit = new BasicEvent<Collision>(component, "OnCollisionExit");
-						eventsForMonoBehaviour.onCollisionStay = new BasicEvent<Collision>(component, "OnCollisionStay");
-
-						monoBehaviourEvents[component] = eventsForMonoBehaviour;
-					}
-
-					// Add events for collider
-					if (eventsForMonoBehaviour.onTriggerEnter.IsValid)
-						eventsForCollider.onTriggerEnter.Add(eventsForMonoBehaviour.onTriggerEnter);
-					if (eventsForMonoBehaviour.onTriggerExit.IsValid)
-						eventsForCollider.onTriggerExit.Add(eventsForMonoBehaviour.onTriggerExit);
-					if (eventsForMonoBehaviour.onTriggerStay.IsValid)
-						eventsForCollider.onTriggerStay.Add(eventsForMonoBehaviour.onTriggerStay);
-
-					if (eventsForMonoBehaviour.onCollisionEnter.IsValid)
-						eventsForCollider.onCollisionEnter.Add(eventsForMonoBehaviour.onCollisionEnter);
-					if (eventsForMonoBehaviour.onCollisionExit.IsValid)
-						eventsForCollider.onCollisionExit.Add(eventsForMonoBehaviour.onCollisionExit);
-					if (eventsForMonoBehaviour.onCollisionStay.IsValid)
-						eventsForCollider.onCollisionStay.Add(eventsForMonoBehaviour.onCollisionStay);
-				}
-
-				physicsEvents[collider] = eventsForCollider;
-
-				// In Unity if an object doesn't have a rigidbody, it's considered static
-				// In Rapier, we need to add a fixed rigidbody, so we can simulate dynamic object interacting with static objects
-				if (potentialRigidbody == null && colliderToHandle.TryGetValue(collider, out ColliderHandle colliderHandle))
-				{
-					fixedRigidbodies[collider] = RapierBindings.AddRigidBody(
-						colliderHandle,
-						RigidBodyType.Fixed,
-						collider.transform.position.x,
-						collider.transform.position.y,
-						collider.transform.position.z,
-						collider.transform.rotation.x,
-						collider.transform.rotation.y,
-						collider.transform.rotation.z,
-						collider.transform.rotation.w);
-				}
+				if (eventsForMonoBehaviour.onCollisionEnter.IsValid)
+					eventsForCollider.onCollisionEnter.Add(eventsForMonoBehaviour.onCollisionEnter);
+				if (eventsForMonoBehaviour.onCollisionExit.IsValid)
+					eventsForCollider.onCollisionExit.Add(eventsForMonoBehaviour.onCollisionExit);
+				if (eventsForMonoBehaviour.onCollisionStay.IsValid)
+					eventsForCollider.onCollisionStay.Add(eventsForMonoBehaviour.onCollisionStay);
 			}
-		}
 
-		foreach (Rigidbody rigidbody in Object.FindObjectsByType<Rigidbody>(FindObjectsSortMode.None))
-		{
-			// Add Rapier RigidBody if it doesn't exist
-			if (!rigidbodyToHandle.ContainsKey(rigidbody))
+			physicsEvents[collider] = eventsForCollider;
+
+			// In Unity if an object doesn't have a rigidbody, it's considered static
+			// In Rapier, we need to add a fixed rigidbody, so we can simulate dynamic object interacting with static objects
+			if (potentialRigidbody == null && colliderToHandle.TryGetValue(collider, out ColliderHandle colliderHandle))
 			{
-				Collider[] colliders = rigidbody.GetComponents<Collider>();
-				Assert.AreEqual(colliders.Length, 1, "Rigidbody must have exactly one collider for the moment");
-				ColliderHandle colliderHandle = colliderToHandle[colliders[0]];
-				Transform trs = rigidbody.transform;
-				rigidbodyToHandle[rigidbody] = RapierBindings.AddRigidBody(
+				fixedRigidbodies[collider] = RapierBindings.AddRigidBody(
 					colliderHandle,
-					RigidBodyType.Dynamic,
-					trs.position.x,
-					trs.position.y,
-					trs.position.z,
-					trs.rotation.x,
-					trs.rotation.y,
-					trs.rotation.z,
-					trs.rotation.w);
+					RigidBodyType.Fixed,
+					collider.transform.position.x,
+					collider.transform.position.y,
+					collider.transform.position.z,
+					collider.transform.rotation.x,
+					collider.transform.rotation.y,
+					collider.transform.rotation.z,
+					collider.transform.rotation.w);
 			}
-			RigidBodyHandle handle = rigidbodyToHandle[rigidbody];
-			RapierBindings.SetRigidBodyType(handle, rigidbody.isKinematic ? RigidBodyType.KinematicPositionBased : RigidBodyType.Dynamic);
-
-			// If we are sleeping we likely don't need to worry about updating this
-			RapierBindings.EnableCCD(handle, rigidbody.collisionDetectionMode == CollisionDetectionMode.Continuous);
-			RapierBindings.SetRigidBodyConstraints(handle, (uint)rigidbody.constraints);
 		}
+	}
+
+	private static void AddRigidBody(Rigidbody rigidbody, RigidBodyType type = RigidBodyType.Dynamic)
+	{
+		// Add Rapier RigidBody if it doesn't exist
+		if (!rigidbodyToHandle.ContainsKey(rigidbody))
+		{
+			Collider[] colliders = rigidbody.GetComponents<Collider>();
+			Assert.AreEqual(colliders.Length, 1, "Rigidbody must have exactly one collider for the moment");
+			// Try to add a collider incase we don't have one yet
+			AddCollider(colliders[0]);
+			ColliderHandle colliderHandle = colliderToHandle[colliders[0]];
+			Transform trs = rigidbody.transform;
+			rigidbodyToHandle[rigidbody] = RapierBindings.AddRigidBody(
+				colliderHandle,
+				type,
+				trs.position.x,
+				trs.position.y,
+				trs.position.z,
+				trs.rotation.x,
+				trs.rotation.y,
+				trs.rotation.z,
+				trs.rotation.w);
+		}
+
+		RigidBodyHandle handle = rigidbodyToHandle[rigidbody];
+
+		// Set the various properties of the rigidbody
+		RapierBindings.SetRigidBodyType(handle, rigidbody.isKinematic ? RigidBodyType.KinematicPositionBased : RigidBodyType.Dynamic);
+		RapierBindings.EnableCCD(handle, rigidbody.collisionDetectionMode == CollisionDetectionMode.Continuous);
+		RapierBindings.SetRigidBodyConstraints(handle, (uint)rigidbody.constraints);
 	}
 
 	// Called at the end of the FixedUpdate loop

@@ -86,3 +86,27 @@ impl From<SerializableRigidBodyType> for RigidBodyType {
         }
     }
 }
+
+// SerializableImpulseJointHandle
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct SerializableImpulseJointHandle {
+    index: u32,
+    generation: u32,
+}
+
+impl From<ImpulseJointHandle> for SerializableImpulseJointHandle {
+    fn from(value: ImpulseJointHandle) -> Self {
+        let val = value.into_raw_parts();
+        SerializableImpulseJointHandle {
+            index: val.0,
+            generation: val.1,
+        }
+    }
+}
+
+impl From<SerializableImpulseJointHandle> for ImpulseJointHandle {
+    fn from(value: SerializableImpulseJointHandle) -> Self {
+        ImpulseJointHandle::from_raw_parts(value.index, value.generation)
+    }
+}

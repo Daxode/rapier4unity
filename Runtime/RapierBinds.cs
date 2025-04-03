@@ -38,8 +38,14 @@ internal static unsafe class RapierBindings
 	public static ColliderHandle AddMeshCollider(float* verticesPtr, UIntPtr verticesCount, uint* indicesPtr, UIntPtr indicesCount, float mass, bool isSensor) => ((delegate* unmanaged[Cdecl]<float*, UIntPtr, uint*, UIntPtr, float, bool, ColliderHandle>) data.Data.addMeshCollider)(verticesPtr, verticesCount, indicesPtr, indicesCount, mass, isSensor);
 	public static ColliderHandle AddConvexMeshCollider(float* verticesPtr, UIntPtr verticesCount, float mass, bool isSensor) => ((delegate* unmanaged[Cdecl]<float*, UIntPtr, float, bool, ColliderHandle>) data.Data.addConvexMeshCollider)(verticesPtr, verticesCount, mass, isSensor);
 	public static RigidBodyHandle AddRigidBody(ColliderHandle collider, RigidBodyType rbType, float positionX, float positionY, float positionZ, float rotationX, float rotationY, float rotationZ, float rotationW) => ((delegate* unmanaged[Cdecl]<ColliderHandle, RigidBodyType, float, float, float, float, float, float, float, RigidBodyHandle>) data.Data.addRigidBody)(collider, rbType, positionX, positionY, positionZ, rotationX, rotationY, rotationZ, rotationW);
+	public static void RemoveRigidBody(RigidBodyHandle rbHandle) => ((delegate* unmanaged[Cdecl]<RigidBodyHandle, void>) data.Data.removeRigidBody)(rbHandle);
 	public static void SetRigidBodyType(RigidBodyHandle rbHandle, RigidBodyType rbType) => ((delegate* unmanaged[Cdecl]<RigidBodyHandle, RigidBodyType, void>) data.Data.setRigidBodyType)(rbHandle, rbType);
 	public static void SetRigidBodyConstraints(RigidBodyHandle rbHandle, uint constraints) => ((delegate* unmanaged[Cdecl]<RigidBodyHandle, uint, void>) data.Data.setRigidBodyConstraints)(rbHandle, constraints);
+	public static ImpulseJointHandle AddFixedJoint(RigidBodyHandle rb1Handle, RigidBodyHandle rb2Handle, float localFrame1X, float localFrame1Y, float localFrame1Z, float localFrame2X, float localFrame2Y, float localFrame2Z, bool selfCollision) => ((delegate* unmanaged[Cdecl]<RigidBodyHandle, RigidBodyHandle, float, float, float, float, float, float, bool, ImpulseJointHandle>) data.Data.addFixedJoint)(rb1Handle, rb2Handle, localFrame1X, localFrame1Y, localFrame1Z, localFrame2X, localFrame2Y, localFrame2Z, selfCollision);
+	public static ImpulseJointHandle AddSphericalJoint(RigidBodyHandle rb1Handle, RigidBodyHandle rb2Handle, float localFrame1X, float localFrame1Y, float localFrame1Z, float localFrame2X, float localFrame2Y, float localFrame2Z, bool selfCollision) => ((delegate* unmanaged[Cdecl]<RigidBodyHandle, RigidBodyHandle, float, float, float, float, float, float, bool, ImpulseJointHandle>) data.Data.addSphericalJoint)(rb1Handle, rb2Handle, localFrame1X, localFrame1Y, localFrame1Z, localFrame2X, localFrame2Y, localFrame2Z, selfCollision);
+	public static ImpulseJointHandle AddRevoluteJoint(RigidBodyHandle rb1Handle, RigidBodyHandle rb2Handle, float axisX, float axisY, float axisZ, float localFrame1X, float localFrame1Y, float localFrame1Z, float localFrame2X, float localFrame2Y, float localFrame2Z, bool selfCollision) => ((delegate* unmanaged[Cdecl]<RigidBodyHandle, RigidBodyHandle, float, float, float, float, float, float, float, float, float, bool, ImpulseJointHandle>) data.Data.addRevoluteJoint)(rb1Handle, rb2Handle, axisX, axisY, axisZ, localFrame1X, localFrame1Y, localFrame1Z, localFrame2X, localFrame2Y, localFrame2Z, selfCollision);
+	public static ImpulseJointHandle AddPrismaticJoint(RigidBodyHandle rb1Handle, RigidBodyHandle rb2Handle, float axisX, float axisY, float axisZ, float localFrame1X, float localFrame1Y, float localFrame1Z, float localFrame2X, float localFrame2Y, float localFrame2Z, float limitMin, float limitMax, bool selfCollision) => ((delegate* unmanaged[Cdecl]<RigidBodyHandle, RigidBodyHandle, float, float, float, float, float, float, float, float, float, float, float, bool, ImpulseJointHandle>) data.Data.addPrismaticJoint)(rb1Handle, rb2Handle, axisX, axisY, axisZ, localFrame1X, localFrame1Y, localFrame1Z, localFrame2X, localFrame2Y, localFrame2Z, limitMin, limitMax, selfCollision);
+	public static void RemoveJoint(ImpulseJointHandle handle) => ((delegate* unmanaged[Cdecl]<ImpulseJointHandle, void>) data.Data.removeJoint)(handle);
 	public static RapierTransform GetTransform(RigidBodyHandle rbHandle) => ((delegate* unmanaged[Cdecl]<RigidBodyHandle, RapierTransform>) data.Data.getTransform)(rbHandle);
 	public static void SetTransformPosition(RigidBodyHandle rbHandle, float positionX, float positionY, float positionZ) => ((delegate* unmanaged[Cdecl]<RigidBodyHandle, float, float, float, void>) data.Data.setTransformPosition)(rbHandle, positionX, positionY, positionZ);
 	public static void SetTransformRotation(RigidBodyHandle rbHandle, float rotationX, float rotationY, float rotationZ, float rotationW) => ((delegate* unmanaged[Cdecl]<RigidBodyHandle, float, float, float, float, void>) data.Data.setTransformRotation)(rbHandle, rotationX, rotationY, rotationZ, rotationW);
@@ -79,10 +85,22 @@ internal static unsafe class RapierBindings
 	public static extern unsafe ColliderHandle AddConvexMeshCollider(float* verticesPtr, UIntPtr verticesCount, float mass, bool isSensor);
 	[DllImport(DllName, CallingConvention = Convention, EntryPoint="add_rigid_body")]
 	public static extern unsafe RigidBodyHandle AddRigidBody(ColliderHandle collider, RigidBodyType rbType, float positionX, float positionY, float positionZ, float rotationX, float rotationY, float rotationZ, float rotationW);
+	[DllImport(DllName, CallingConvention = Convention, EntryPoint="remove_rigid_body")]
+	public static extern unsafe void RemoveRigidBody(RigidBodyHandle rbHandle);
 	[DllImport(DllName, CallingConvention = Convention, EntryPoint="set_rigid_body_type")]
 	public static extern unsafe void SetRigidBodyType(RigidBodyHandle rbHandle, RigidBodyType rbType);
 	[DllImport(DllName, CallingConvention = Convention, EntryPoint="set_rigid_body_constraints")]
 	public static extern unsafe void SetRigidBodyConstraints(RigidBodyHandle rbHandle, uint constraints);
+	[DllImport(DllName, CallingConvention = Convention, EntryPoint="add_fixed_joint")]
+	public static extern unsafe ImpulseJointHandle AddFixedJoint(RigidBodyHandle rb1Handle, RigidBodyHandle rb2Handle, float localFrame1X, float localFrame1Y, float localFrame1Z, float localFrame2X, float localFrame2Y, float localFrame2Z, bool selfCollision);
+	[DllImport(DllName, CallingConvention = Convention, EntryPoint="add_spherical_joint")]
+	public static extern unsafe ImpulseJointHandle AddSphericalJoint(RigidBodyHandle rb1Handle, RigidBodyHandle rb2Handle, float localFrame1X, float localFrame1Y, float localFrame1Z, float localFrame2X, float localFrame2Y, float localFrame2Z, bool selfCollision);
+	[DllImport(DllName, CallingConvention = Convention, EntryPoint="add_revolute_joint")]
+	public static extern unsafe ImpulseJointHandle AddRevoluteJoint(RigidBodyHandle rb1Handle, RigidBodyHandle rb2Handle, float axisX, float axisY, float axisZ, float localFrame1X, float localFrame1Y, float localFrame1Z, float localFrame2X, float localFrame2Y, float localFrame2Z, bool selfCollision);
+	[DllImport(DllName, CallingConvention = Convention, EntryPoint="add_prismatic_joint")]
+	public static extern unsafe ImpulseJointHandle AddPrismaticJoint(RigidBodyHandle rb1Handle, RigidBodyHandle rb2Handle, float axisX, float axisY, float axisZ, float localFrame1X, float localFrame1Y, float localFrame1Z, float localFrame2X, float localFrame2Y, float localFrame2Z, float limitMin, float limitMax, bool selfCollision);
+	[DllImport(DllName, CallingConvention = Convention, EntryPoint="remove_joint")]
+	public static extern unsafe void RemoveJoint(ImpulseJointHandle handle);
 	[DllImport(DllName, CallingConvention = Convention, EntryPoint="get_transform")]
 	public static extern unsafe RapierTransform GetTransform(RigidBodyHandle rbHandle);
 	[DllImport(DllName, CallingConvention = Convention, EntryPoint="set_transform_position")]
@@ -142,8 +160,14 @@ internal static unsafe class RapierBindings
 			addMeshCollider = NativeLoader.GetFunction(loaded_lib, "add_mesh_collider");
 			addConvexMeshCollider = NativeLoader.GetFunction(loaded_lib, "add_convex_mesh_collider");
 			addRigidBody = NativeLoader.GetFunction(loaded_lib, "add_rigid_body");
+			removeRigidBody = NativeLoader.GetFunction(loaded_lib, "remove_rigid_body");
 			setRigidBodyType = NativeLoader.GetFunction(loaded_lib, "set_rigid_body_type");
 			setRigidBodyConstraints = NativeLoader.GetFunction(loaded_lib, "set_rigid_body_constraints");
+			addFixedJoint = NativeLoader.GetFunction(loaded_lib, "add_fixed_joint");
+			addSphericalJoint = NativeLoader.GetFunction(loaded_lib, "add_spherical_joint");
+			addRevoluteJoint = NativeLoader.GetFunction(loaded_lib, "add_revolute_joint");
+			addPrismaticJoint = NativeLoader.GetFunction(loaded_lib, "add_prismatic_joint");
+			removeJoint = NativeLoader.GetFunction(loaded_lib, "remove_joint");
 			getTransform = NativeLoader.GetFunction(loaded_lib, "get_transform");
 			setTransformPosition = NativeLoader.GetFunction(loaded_lib, "set_transform_position");
 			setTransformRotation = NativeLoader.GetFunction(loaded_lib, "set_transform_rotation");
@@ -172,8 +196,14 @@ internal static unsafe class RapierBindings
 		public IntPtr addMeshCollider;
 		public IntPtr addConvexMeshCollider;
 		public IntPtr addRigidBody;
+		public IntPtr removeRigidBody;
 		public IntPtr setRigidBodyType;
 		public IntPtr setRigidBodyConstraints;
+		public IntPtr addFixedJoint;
+		public IntPtr addSphericalJoint;
+		public IntPtr addRevoluteJoint;
+		public IntPtr addPrismaticJoint;
+		public IntPtr removeJoint;
 		public IntPtr getTransform;
 		public IntPtr setTransformPosition;
 		public IntPtr setTransformRotation;

@@ -12,6 +12,7 @@ static RUST_TYPE_TO_CSHARP: Map<&'static str, &'static str> = phf_map! {
     "SerializableColliderHandle" => "ColliderHandle",
     "SerializableRigidBodyType" => "RigidBodyType",
     "SerializableRigidBodyHandle" => "RigidBodyHandle",
+    "SerializableImpulseJointHandle" => "ImpulseJointHandle",
     "SerializableCollisionEvent" => "CollisionEvent",
     "RaycastHit" => "RapierRaycastHit",
     "Vector3<float>" => "float3",
