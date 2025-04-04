@@ -150,12 +150,14 @@ public class RapierLoop
 		// Make sure the rigidbodies are registered
 		if (!rigidbodyToHandle.ContainsKey(joint.Anchor))
 		{
-			AddRigidBody(joint.Anchor);
+			RigidBodyHandle handle = CreateOrGetRigidBodyHandle(joint.Anchor);
+			UpdateRigidBody(joint.Anchor, handle);
 		}
 
 		if (!rigidbodyToHandle.ContainsKey(joint.Mover))
 		{
-			AddRigidBody(joint.Mover);
+			RigidBodyHandle handle = CreateOrGetRigidBodyHandle(joint.Mover);
+			UpdateRigidBody(joint.Mover, handle);
 		}
 
 		RigidBodyHandle anchorHandle = rigidbodyToHandle[joint.Anchor];
@@ -378,7 +380,8 @@ public class RapierLoop
 		// Find and add all rigidbodies
 		foreach (Rigidbody rigidbody in Object.FindObjectsByType<Rigidbody>(FindObjectsSortMode.None))
 		{
-			AddRigidBody(rigidbody);
+			RigidBodyHandle handle = CreateOrGetRigidBodyHandle(rigidbody);
+			UpdateRigidBody(rigidbody, handle);
 		}
 	}
 
@@ -541,7 +544,7 @@ public class RapierLoop
 		}
 	}
 
-	private static void AddRigidBody(Rigidbody rigidbody, RigidBodyType type = RigidBodyType.Dynamic)
+	private static RigidBodyHandle CreateOrGetRigidBodyHandle(Rigidbody rigidbody, RigidBodyType type = RigidBodyType.Dynamic)
 	{
 		// Add Rapier RigidBody if it doesn't exist
 		if (!rigidbodyToHandle.ContainsKey(rigidbody))
@@ -552,7 +555,7 @@ public class RapierLoop
 			AddCollider(colliders[0]);
 			ColliderHandle colliderHandle = colliderToHandle[colliders[0]];
 			Transform trs = rigidbody.transform;
-			rigidbodyToHandle[rigidbody] = RapierBindings.AddRigidBody(
+			RigidBodyHandle rigidBodyHandle = RapierBindings.AddRigidBody(
 				colliderHandle,
 				type,
 				trs.position.x,
@@ -562,14 +565,24 @@ public class RapierLoop
 				trs.rotation.y,
 				trs.rotation.z,
 				trs.rotation.w);
+
+			rigidbodyToHandle[rigidbody] = rigidBodyHandle;
+			return rigidBodyHandle;
 		}
+		else
+		{
+			return rigidbodyToHandle[rigidbody];
+		}
+	}
 
-		RigidBodyHandle handle = rigidbodyToHandle[rigidbody];
-
-		// Set the various properties of the rigidbody
+	private static void UpdateRigidBody(Rigidbody rigidbody, RigidBodyHandle handle)
+	{
+		// TODO Determine what other kinds of properties might need to update per frame. 
+		// Set the various properties of the rigidbody (these are updated every frame, incase of changes)
 		RapierBindings.SetRigidBodyType(handle, rigidbody.isKinematic ? RigidBodyType.KinematicPositionBased : RigidBodyType.Dynamic);
 		RapierBindings.EnableCCD(handle, rigidbody.collisionDetectionMode == CollisionDetectionMode.Continuous);
 		RapierBindings.SetRigidBodyConstraints(handle, (uint)rigidbody.constraints);
+		RapierBindings.SetRigidBodyDrag(handle, rigidbody.linearDamping, rigidbody.angularDamping);
 	}
 
 	// Called at the end of the FixedUpdate loop
