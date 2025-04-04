@@ -6,7 +6,7 @@ namespace Packages.rapier4unity.Runtime
     public static class NativeLoader
     {
         
-#if UNITY_STANDALONE_OSX
+#if UNITY_EDITOR_OSX
         private const string LibSystem = "/usr/lib/libSystem.dylib";
 
         // Flags for dlopen
@@ -56,7 +56,7 @@ namespace Packages.rapier4unity.Runtime
         /// <param name="path">Path (can be relative to Unity project root or absolute) </param>
         /// <returns> Handle to Library </returns>
         public static IntPtr LoadLibrary(string path) =>
-#if UNITY_STANDALONE_OSX && UNITY_EDITOR
+#if UNITY_EDITOR_OSX && UNITY_EDITOR
             dlopen(path, LoadMode.Lazy);
 #elif UNITY_EDITOR
             LoadLibraryA(path);
@@ -71,7 +71,7 @@ namespace Packages.rapier4unity.Runtime
         /// <param name="symbol"> Name of the Symbol to load from the library </param>
         /// <returns></returns>
         public static IntPtr GetFunction(IntPtr handle, string symbol) =>
-#if UNITY_STANDALONE_OSX
+#if UNITY_EDITOR_OSX
             dlsym(handle, symbol);
 #else
             GetProcAddress(handle, symbol);
@@ -82,7 +82,7 @@ namespace Packages.rapier4unity.Runtime
         /// </summary>
         /// <param name="handle"> The Library Handle gotten from <see cref="LoadLibrary"/> </param>
         public static void FreeLibrary(IntPtr handle) =>
-#if UNITY_STANDALONE_OSX
+#if UNITY_EDITOR_OSX
             dlclose(handle);
 #else
             Win32FreeLibrary(handle);
@@ -93,7 +93,7 @@ namespace Packages.rapier4unity.Runtime
         /// </summary>
         /// <returns> The Error Message </returns>
         public static string GetLastErrorString() =>
-#if UNITY_STANDALONE_OSX
+#if UNITY_EDITOR_OSX
             Marshal.PtrToStringAnsi(dlerror());
 #else 
             Marshal.PtrToStringAnsi(GetLastError());
@@ -103,8 +103,8 @@ namespace Packages.rapier4unity.Runtime
     
     public static class UnityRapierBridge
     {
-#if UNITY_STANDALONE_OSX
-        private const string DllName = "libunitybridge.dylib";
+#if !UNITY_EDITOR && (UNITY_IOS || UNITY_WEBGL)
+        private const string DllName = "__Internal";
 #else
 		private const string DllName = "unitybridge";
 #endif

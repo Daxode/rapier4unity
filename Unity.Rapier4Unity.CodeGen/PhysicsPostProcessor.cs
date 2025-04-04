@@ -164,6 +164,7 @@ public class PhysicsPostProcessor
         var method = m_Rapier.GetMethod(functionToInjectName, m_DefaultBindingFlags);
         var newMethodReference = m_AssemblyMainModule.ImportReference(method);
         instruction.Operand = newMethodReference;
+        instruction.OpCode = OpCodes.Call;
         Patch.OutputDebugString($"Method: {GetMethodSignature((MethodReference)instruction.Operand)} -> {GetMethodSignature(newMethodReference)}");
     }
 

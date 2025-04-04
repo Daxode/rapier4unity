@@ -4,9 +4,16 @@ version = "0.1.0"
 edition = "2024"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["staticlib", "cdylib"]
 
 [dependencies]
 log = "0.4.27"
 rapier3d = { version = "0.23.1", features = [ "simd-stable" ] }
 unitybridge = { path = "../unitybridge" }
+
+[target.aarch64-linux-android]
+rustflags = [
+    "-Clink-args=-Wl,-z,max-page-size=16384",
+    "-Clink-args=-Wl,-z,common-page-size=16384",
+    "-Clink-args=-Wl,--script=./android_linker.ld"
+]

@@ -69,29 +69,19 @@ fn main() -> Result<()> {
     writeln!(&mut writer, "[BurstCompile]")?;
     writeln!(&mut writer, "internal static unsafe class RapierBindings")?;
     writeln!(&mut writer, "{{")?;
-    writeln!(&mut writer, "#if UNITY_STANDALONE_OSX")?;
-    writeln!(
-        &mut writer,
-        "\tprivate const string DllName = \"librapier_c_bind.dylib\";"
-    )?;
-    writeln!(
-        &mut writer,
-        "\tconst string k_DLLPath = \"Packages/rapier4unity/build_bin/librapier_c_bind.dylib\";"
-    )?;
-    writeln!(&mut writer, "#else")?;
-    writeln!(
-        &mut writer,
-        "\tprivate const string DllName = \"rapier_c_bind\";"
-    )?;
-    writeln!(
-        &mut writer,
-        "\tconst string k_DLLPath = \"Packages/rapier4unity/build_bin/rapier_c_bind.dll\";"
-    )?;
-    writeln!(&mut writer, "#endif")?;
-    writeln!(
-        &mut writer,
-        "\tprivate const CallingConvention Convention = CallingConvention.Cdecl;"
-    )?;
+    writeln!(&mut writer, r#"
+#if !UNITY_EDITOR && (UNITY_IOS || UNITY_WEBGL)
+	private const string DllName = "__Internal";
+#else
+	private const string DllName = "rapier_c_bind";
+
+#if UNITY_EDITOR_OSX
+	const string k_DLLPath = "Packages/rapier4unity/build_bin/macOS/rapier_c_bind.bundle";
+#else
+	const string k_DLLPath = "Packages/rapier4unity/build_bin/Windows/rapier_c_bind.dll";
+#endif
+#endif
+	private const CallingConvention Convention = CallingConvention.Cdecl;"#)?;
 
     let mut raw_function_ptrs = Vec::new();
     let mut load_calls = Vec::new();
