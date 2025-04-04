@@ -150,12 +150,14 @@ public class RapierLoop
 		// Make sure the rigidbodies are registered
 		if (!rigidbodyToHandle.ContainsKey(joint.Anchor))
 		{
-			AddRigidBody(joint.Anchor);
+			RigidBodyHandle handle = CreateOrGetRigidBodyHandle(joint.Anchor);
+			UpdateRigidBody(joint.Anchor, handle);
 		}
 
 		if (!rigidbodyToHandle.ContainsKey(joint.Mover))
 		{
-			AddRigidBody(joint.Mover);
+			RigidBodyHandle handle = CreateOrGetRigidBodyHandle(joint.Mover);
+			UpdateRigidBody(joint.Mover, handle);
 		}
 
 		RigidBodyHandle anchorHandle = rigidbodyToHandle[joint.Anchor];
@@ -378,7 +380,8 @@ public class RapierLoop
 		// Find and add all rigidbodies
 		foreach (Rigidbody rigidbody in Object.FindObjectsByType<Rigidbody>(FindObjectsSortMode.None))
 		{
-			AddRigidBody(rigidbody);
+			RigidBodyHandle handle = CreateOrGetRigidBodyHandle(rigidbody);
+			UpdateRigidBody(rigidbody, handle);
 		}
 	}
 
@@ -541,35 +544,46 @@ public class RapierLoop
 		}
 	}
 
-	private static void AddRigidBody(Rigidbody rigidbody, RigidBodyType type = RigidBodyType.Dynamic)
+	private static RigidBodyHandle CreateOrGetRigidBodyHandle(Rigidbody rigidbody, RigidBodyType type = RigidBodyType.Dynamic)
 	{
-		// Add Rapier RigidBody if it doesn't exist
-		if (!rigidbodyToHandle.ContainsKey(rigidbody))
+		// Try to get the handle from the dictionary first
+		if (rigidbodyToHandle.TryGetValue(rigidbody, out RigidBodyHandle handle))
 		{
-			Collider[] colliders = rigidbody.GetComponents<Collider>();
-			Assert.AreEqual(colliders.Length, 1, "Rigidbody must have exactly one collider for the moment");
-			// Try to add a collider incase we don't have one yet
-			AddCollider(colliders[0]);
-			ColliderHandle colliderHandle = colliderToHandle[colliders[0]];
-			Transform trs = rigidbody.transform;
-			rigidbodyToHandle[rigidbody] = RapierBindings.AddRigidBody(
-				colliderHandle,
-				type,
-				trs.position.x,
-				trs.position.y,
-				trs.position.z,
-				trs.rotation.x,
-				trs.rotation.y,
-				trs.rotation.z,
-				trs.rotation.w);
+			return handle;
 		}
 
-		RigidBodyHandle handle = rigidbodyToHandle[rigidbody];
+		// Handle doesn't exist, create a new one
+		Collider[] colliders = rigidbody.GetComponents<Collider>();
+		Assert.AreEqual(colliders.Length, 1, "Rigidbody must have exactly one collider for the moment");
 
-		// Set the various properties of the rigidbody
-		RapierBindings.SetRigidBodyType(handle, rigidbody.isKinematic ? RigidBodyType.KinematicPositionBased : RigidBodyType.Dynamic);
-		RapierBindings.EnableCCD(handle, rigidbody.collisionDetectionMode == CollisionDetectionMode.Continuous);
-		RapierBindings.SetRigidBodyConstraints(handle, (uint)rigidbody.constraints);
+		// Try to add a collider in case we don't have one yet
+		AddCollider(colliders[0]);
+		ColliderHandle colliderHandle = colliderToHandle[colliders[0]];
+		Transform trs = rigidbody.transform;
+		RigidBodyHandle rigidBodyHandle = RapierBindings.AddRigidBody(
+			colliderHandle,
+			type,
+			trs.position.x,
+			trs.position.y,
+			trs.position.z,
+			trs.rotation.x,
+			trs.rotation.y,
+			trs.rotation.z,
+			trs.rotation.w);
+
+		rigidbodyToHandle[rigidbody] = rigidBodyHandle;
+		return rigidBodyHandle;
+	}
+
+	private static void UpdateRigidBody(Rigidbody rigidbody, RigidBodyHandle handle)
+	{
+		// TODO Determine what other kinds of properties might need to update per frame. 
+		RapierBindings.UpdateRigidBodyProperties(handle,
+		rigidbody.isKinematic ? RigidBodyType.KinematicPositionBased : RigidBodyType.Dynamic,
+		rigidbody.collisionDetectionMode == CollisionDetectionMode.Continuous,
+		(uint)rigidbody.constraints,
+		rigidbody.linearDamping,
+		rigidbody.angularDamping);
 	}
 
 	// Called at the end of the FixedUpdate loop

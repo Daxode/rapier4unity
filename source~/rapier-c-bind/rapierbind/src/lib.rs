@@ -287,35 +287,36 @@ extern "C" fn remove_rigid_body(rb_handle: SerializableRigidBodyHandle) {
 }
 
 #[unsafe(no_mangle)]
-extern "C" fn set_rigid_body_type(
+extern "C" fn update_rigid_body_properties(
     rb_handle: SerializableRigidBodyHandle,
     rb_type: SerializableRigidBodyType,
+    enable_ccd: bool,
+    constraints: u32,
+    linear_drag: f32,
+    angular_drag: f32,
 ) {
     let psd = get_mutable_physics_solver();
     let rb = psd.rigid_body_set.get_mut(rb_handle.into()).unwrap();
-    let rb_type: RigidBodyType = rb_type.into();
 
-    // If the body type is the same, do nothing
-    if rb.body_type() == rb_type {
-        return;
+    // Update body type if different
+    let rb_type_enum: RigidBodyType = rb_type.into();
+    if rb.body_type() != rb_type_enum {
+        rb.set_body_type(rb_type_enum, true);
     }
 
-    rb.set_body_type(rb_type, true);
-}
+    // Set CCD
+    rb.enable_ccd(enable_ccd);
 
-#[unsafe(no_mangle)]
-extern "C" fn set_rigid_body_constraints(rb_handle: SerializableRigidBodyHandle, constraints: u32) {
-    let psd = get_mutable_physics_solver();
-    let rb = psd.rigid_body_set.get_mut(rb_handle.into()).unwrap();
-
-    // If the constraints are the same, do nothing
-    if locked_axes_to_unity_constraints(rb.locked_axes()) == constraints {
-        return;
+    // Update constraints if different
+    if locked_axes_to_unity_constraints(rb.locked_axes()) != constraints {
+        let locks = unity_constraints_to_locked_axes(constraints);
+        rb.set_locked_axes(locks, false);
+        cancel_axis_velocity(locks, rb);
     }
 
-    let locks = unity_constraints_to_locked_axes(constraints);
-    rb.set_locked_axes(locks, false);
-    cancel_axis_velocity(locks, rb);
+    // Set drag values
+    rb.set_linear_damping(linear_drag);
+    rb.set_angular_damping(angular_drag);
 }
 
 #[unsafe(no_mangle)]
@@ -557,13 +558,6 @@ extern "C" fn get_angular_velocity(rb_handle: SerializableRigidBodyHandle) -> Ve
     rb.angvel().clone()
 }
 
-#[unsafe(no_mangle)]
-extern "C" fn enable_CCD(rb_handle: SerializableRigidBodyHandle, enabled: bool) {
-    let psd = get_mutable_physics_solver();
-    let rb = psd.rigid_body_set.get_mut(rb_handle.into()).unwrap();
-    rb.enable_ccd(enabled);
-}
-
 // Add Force
 #[unsafe(no_mangle)]
 extern "C" fn add_force(
@@ -622,6 +616,51 @@ extern "C" fn add_torque(
         }
     }
     rb.set_angvel(angvel, true);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn set_integration_parameters(
+    // Time step
+    dt: f32,
+    // Solver parameters
+    solver_iterations: usize,
+    solver_pgs_iterations: usize,
+    solver_additional_friction_iterations: usize,
+    solver_stabilization_iterations: usize,
+    ccd_substeps: usize,
+    // Damping parameters
+    contact_damping_ratio: f32,
+    joint_damping_ratio: f32,
+    // Frequency parameters
+    contact_frequency: f32,
+    joint_frequency: f32,
+    // Prediction parameters
+    prediction_distance: f32,
+    max_corrective_velocity: f32,
+    // Length unit
+    length_unit: f32,
+) {
+    use std::num::NonZeroUsize;
+
+    let psd = get_mutable_physics_solver();
+    psd.integration_parameters.dt = dt;
+    psd.integration_parameters.min_ccd_dt = dt / 100.0;
+    psd.integration_parameters.num_solver_iterations =
+        NonZeroUsize::new(solver_iterations as usize).unwrap_or(NonZeroUsize::new(4).unwrap());
+    psd.integration_parameters.num_internal_pgs_iterations = solver_pgs_iterations;
+    psd.integration_parameters
+        .num_additional_friction_iterations = solver_additional_friction_iterations;
+    psd.integration_parameters
+        .num_internal_stabilization_iterations = solver_stabilization_iterations;
+    psd.integration_parameters.max_ccd_substeps = ccd_substeps;
+    psd.integration_parameters.contact_damping_ratio = contact_damping_ratio;
+    psd.integration_parameters.joint_damping_ratio = joint_damping_ratio;
+    psd.integration_parameters.contact_natural_frequency = contact_frequency;
+    psd.integration_parameters.joint_natural_frequency = joint_frequency;
+    psd.integration_parameters.normalized_prediction_distance = prediction_distance;
+    psd.integration_parameters
+        .normalized_max_corrective_velocity = max_corrective_velocity;
+    psd.integration_parameters.length_unit = length_unit;
 }
 
 // Scene Query

@@ -3,7 +3,7 @@ use phf::{Map, phf_map};
 use proc_macro2::TokenTree::{Ident, Punct};
 use quote::ToTokens;
 use std::env::args;
-use std::fs::{File, OpenOptions};
+use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 use syn::visit::Visit;
 
@@ -29,18 +29,20 @@ fn main() -> Result<()> {
     let folder = args().nth(1).expect("Please provide an input folder.");
     let files = get_rust_files(&folder)?;
 
+    let path = std::path::Path::new("../../Runtime/RapierBinds.cs");
+
+    // Delete and recreate the file
+    if path.exists() {
+        std::fs::remove_file(path)?;
+        std::fs::File::create(path)?;
+    }
+
     // open file to write or create if it doesn't exist
     let file = OpenOptions::new()
         .append(false)
         .write(true)
-        .open("../../Runtime/RapierBinds.cs")
-        .or_else(|err| {
-            if err.kind() == std::io::ErrorKind::NotFound {
-                File::create("../../Runtime/RapierBinds.cs")
-            } else {
-                Err(err)
-            }
-        });
+        .open(path)
+        .or_else(|err| Err(err));
 
     let mut writer = BufWriter::new(file?);
     // write to file
