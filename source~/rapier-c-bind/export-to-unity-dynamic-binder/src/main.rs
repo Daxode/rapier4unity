@@ -1,17 +1,18 @@
-use std::io::{BufWriter, Write};
-use std::env::args;
-use std::fs::{File, OpenOptions};
 use anyhow::Result;
-use quote::ToTokens;
-use syn::visit::Visit;
+use phf::{Map, phf_map};
 use proc_macro2::TokenTree::{Ident, Punct};
-use phf::{phf_map, Map};
+use quote::ToTokens;
+use std::env::args;
+use std::fs::OpenOptions;
+use std::io::{BufWriter, Write};
+use syn::visit::Visit;
 
 // static type translation hashmap
 static RUST_TYPE_TO_CSHARP: Map<&'static str, &'static str> = phf_map! {
     "SerializableColliderHandle" => "ColliderHandle",
     "SerializableRigidBodyType" => "RigidBodyType",
     "SerializableRigidBodyHandle" => "RigidBodyHandle",
+    "SerializableImpulseJointHandle" => "ImpulseJointHandle",
     "SerializableCollisionEvent" => "CollisionEvent",
     "RaycastHit" => "RapierRaycastHit",
     "Vector3<float>" => "float3",
@@ -28,14 +29,20 @@ fn main() -> Result<()> {
     let folder = args().nth(1).expect("Please provide an input folder.");
     let files = get_rust_files(&folder)?;
 
+    let path = std::path::Path::new("../../Runtime/RapierBinds.cs");
+
+    // Delete and recreate the file
+    if path.exists() {
+        std::fs::remove_file(path)?;
+        std::fs::File::create(path)?;
+    }
+
     // open file to write or create if it doesn't exist
-    let file = OpenOptions::new().append(false).write(true).open("../../Runtime/RapierBinds.cs").or_else(|err| {
-        if err.kind() == std::io::ErrorKind::NotFound {
-            File::create("../../Runtime/RapierBinds.cs")
-        } else {
-            Err(err)
-        }
-    });
+    let file = OpenOptions::new()
+        .append(false)
+        .write(true)
+        .open(path)
+        .or_else(|err| Err(err));
 
     let mut writer = BufWriter::new(file?);
     // write to file
@@ -51,7 +58,10 @@ fn main() -> Result<()> {
     writeln!(&mut writer, "using Unity.Mathematics;")?;
     writeln!(&mut writer, "")?;
 
-    writeln!(&mut writer, "#if UNITY_EDITOR && !DISABLE_DYNAMIC_RAPIER_LOAD")?;
+    writeln!(
+        &mut writer,
+        "#if UNITY_EDITOR && !DISABLE_DYNAMIC_RAPIER_LOAD"
+    )?;
     writeln!(&mut writer, "[UnityEditor.InitializeOnLoad]")?;
     writeln!(&mut writer, "#endif")?;
 
@@ -97,11 +107,21 @@ fn main() -> Result<()> {
         }
 
         for i in 0..visitor.function_names.len() {
-            load_calls.push(format!("{} = NativeLoader.GetFunction(loaded_lib, \"{}\");", to_camel_case(&visitor.function_names[i]), visitor.function_names[i]));
-            raw_function_ptrs.push(format!("public IntPtr {};", to_camel_case(&visitor.function_names[i])));
+            load_calls.push(format!(
+                "{} = NativeLoader.GetFunction(loaded_lib, \"{}\");",
+                to_camel_case(&visitor.function_names[i]),
+                visitor.function_names[i]
+            ));
+            raw_function_ptrs.push(format!(
+                "public IntPtr {};",
+                to_camel_case(&visitor.function_names[i])
+            ));
         }
 
-        writeln!(&mut writer, "#if UNITY_EDITOR && !DISABLE_DYNAMIC_RAPIER_LOAD")?;
+        writeln!(
+            &mut writer,
+            "#if UNITY_EDITOR && !DISABLE_DYNAMIC_RAPIER_LOAD"
+        )?;
         for i in 0..visitor.function_names.len() {
             writeln!(&mut writer, "\t{}", visitor.function_ptr_signatures[i])?;
         }
@@ -112,7 +132,9 @@ fn main() -> Result<()> {
         writeln!(&mut writer, "#endif")?;
     }
     // stuff
-    writeln!(&mut writer, r#"
+    writeln!(
+        &mut writer,
+        r#"
 #if UNITY_EDITOR && !DISABLE_DYNAMIC_RAPIER_LOAD
     // C# -> Rust
     [StructLayout(LayoutKind.Sequential, Size=sizeof(ulong) * 512)]
@@ -195,14 +217,15 @@ fn main() -> Result<()> {
             unityLogPtr = UnityRapierBridge.GetDefaultUnityLogger();
         }}
     }}
-"#, load_calls.join("\n\t\t\t"), raw_function_ptrs.join("\n\t\t"))?;
+"#,
+        load_calls.join("\n\t\t\t"),
+        raw_function_ptrs.join("\n\t\t")
+    )?;
     writeln!(&mut writer, "}}")?;
     writer.flush()?;
 
     Ok(())
 }
-
-
 
 // turn snake_case to PascalCase
 fn to_pascal_case(name: &str) -> String {
@@ -238,16 +261,15 @@ fn to_camel_case(name: &str) -> String {
     result
 }
 
-
 struct FunctionVisitor {
     function_names: Vec<String>,
     function_ptr_signatures: Vec<String>,
     extern_function_signatures: Vec<String>,
 }
 
-
 fn is_extern_c(sig: &syn::Signature) -> bool {
-    sig.abi.as_ref()
+    sig.abi
+        .as_ref()
         .and_then(|abi| abi.name.as_ref())
         .map(|lit_str| lit_str.value() == "C")
         .unwrap_or(false)
@@ -270,7 +292,7 @@ impl<'a> Visit<'_> for FunctionVisitor {
         let mut parameter_list = Vec::new();
         let mut names = Vec::new();
         let mut return_type = String::new();
-        if let syn::ReturnType::Type(_, return_typee) = &node.sig.output{
+        if let syn::ReturnType::Type(_, return_typee) = &node.sig.output {
             return_type.push_str(get_typename(return_typee).as_str());
         } else {
             return_type.push_str("void");
@@ -278,7 +300,6 @@ impl<'a> Visit<'_> for FunctionVisitor {
 
         for arg in &node.sig.inputs {
             if let syn::FnArg::Typed(pat_type) = arg {
-
                 // Get argument name
                 let name = match &*pat_type.pat {
                     syn::Pat::Ident(ident) => ident.ident.to_string(),
@@ -298,7 +319,15 @@ impl<'a> Visit<'_> for FunctionVisitor {
         types.push(return_type.to_string());
 
         self.function_names.push(node.sig.ident.to_string());
-        self.function_ptr_signatures.push(format!("public static {} {}({}) => ((delegate* unmanaged[Cdecl]<{}>) data.Data.{})({});", return_type, pascal_cased_name, parameter_list.join(", "), types.join(", "), camel_cased_name, names.join(", ")));
+        self.function_ptr_signatures.push(format!(
+            "public static {} {}({}) => ((delegate* unmanaged[Cdecl]<{}>) data.Data.{})({});",
+            return_type,
+            pascal_cased_name,
+            parameter_list.join(", "),
+            types.join(", "),
+            camel_cased_name,
+            names.join(", ")
+        ));
         self.extern_function_signatures.push(format!("[DllImport(DllName, CallingConvention = Convention, EntryPoint=\"{}\")]\n\tpublic static extern unsafe {} {}({});", node.sig.ident, return_type, pascal_cased_name, parameter_list.join(", ")));
         // Output the result
         // println!(
