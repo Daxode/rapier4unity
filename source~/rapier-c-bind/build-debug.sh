@@ -46,5 +46,27 @@ mkdir ../../build_bin/Android
 cp target/${TARGET_ANDROID}/debug/lib${LIB}.so ../../build_bin/Android/
 cp target/${TARGET_ANDROID}/debug/lib${UNITY_LIB}.so ../../build_bin/Android/
 
+# Build WebGL
+TARGET_WEBGL="wasm32-unknown-unknown"
+export PATH=/Applications/Unity/Hub/Editor/6000.0.44f1/PlaybackEngines/WebGLSupport/BuildTools/Emscripten/emscripten:$PATH
+#export CARGO_TARGET_WASM32_UNKNOWN_EMSCRIPTEN_LINKER="emcc"
+export EMCC_CFLAGS="-Oz -s ALLOW_MEMORY_GROWTH=1"
+cargo build -p unitybridge --target=$TARGET_WEBGL -r
+cargo build -p rapier-c-bind --target=$TARGET_WEBGL -r
+mkdir ../../build_bin/WebGL
+emar x target/${TARGET_WEBGL}/release/lib${LIB}.a --output=extracted_objs
+rm -f extracted_objs/allocator_api2-c117db5a17780b90.allocator_api2.86497b8fc7b9cc69-cgu.0.rcgu.o
+emar rcs ../../build_bin/WebGL/lib${LIB}.a extracted_objs/*.o
+rm -rf ./extracted_objs
+emar x target/${TARGET_WEBGL}/release/lib${UNITY_LIB}.a --output=extracted_objs/
+rm -f extracted_objs/allocator_api2-c117db5a17780b90.allocator_api2.86497b8fc7b9cc69-cgu.0.rcgu.o
+emar rcs ../../build_bin/WebGL/lib${UNITY_LIB}.a extracted_objs/*.o
+rm -rf ./extracted_objs
+
+#emar rcs ../../build_bin/WebGL/lib${LIB}.a ../../build_bin/WebGL/lib${LIB}.a
+
+#cp target/${TARGET_WEBGL}/debug/${LIB}.js ../../build_bin/WebGL/
+#cp target/${TARGET_WEBGL}/debug/${LIB}.wasm ../../build_bin/WebGL/
+
 # Generate C# bindings
 cargo run -- ./rapierbind/src

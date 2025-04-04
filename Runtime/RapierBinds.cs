@@ -81,23 +81,23 @@ internal static unsafe class RapierBindings
 	[DllImport(DllName, CallingConvention = Convention, EntryPoint="add_rigid_body")]
 	public static extern unsafe RigidBodyHandle AddRigidBody(ColliderHandle collider, RigidBodyType rbType, float positionX, float positionY, float positionZ, float rotationX, float rotationY, float rotationZ, float rotationW);
 	[DllImport(DllName, CallingConvention = Convention, EntryPoint="get_transform")]
-	public static extern unsafe RapierTransform GetTransform(RigidBodyHandle rbHandle);
+	public static extern unsafe RapierTransform GetTransform(uint rbHandleIndex, uint rbHandleGeneration);
 	[DllImport(DllName, CallingConvention = Convention, EntryPoint="set_transform_position")]
-	public static extern unsafe void SetTransformPosition(RigidBodyHandle rbHandle, float positionX, float positionY, float positionZ);
+	public static extern unsafe void SetTransformPosition(uint rbHandleIndex, uint rbHandleGeneration, float positionX, float positionY, float positionZ);
 	[DllImport(DllName, CallingConvention = Convention, EntryPoint="set_transform_rotation")]
-	public static extern unsafe void SetTransformRotation(RigidBodyHandle rbHandle, float rotationX, float rotationY, float rotationZ, float rotationW);
+	public static extern unsafe void SetTransformRotation(uint rbHandleIndex, uint rbHandleGeneration, float rotationX, float rotationY, float rotationZ, float rotationW);
 	[DllImport(DllName, CallingConvention = Convention, EntryPoint="set_linear_velocity")]
-	public static extern unsafe void SetLinearVelocity(RigidBodyHandle rbHandle, float velocityX, float velocityY, float velocityZ);
+	public static extern unsafe void SetLinearVelocity(uint rbHandleIndex, uint rbHandleGeneration, float velocityX, float velocityY, float velocityZ);
 	[DllImport(DllName, CallingConvention = Convention, EntryPoint="set_angular_velocity")]
-	public static extern unsafe void SetAngularVelocity(RigidBodyHandle rbHandle, float velocityX, float velocityY, float velocityZ);
+	public static extern unsafe void SetAngularVelocity(uint rbHandleIndex, uint rbHandleGeneration, float velocityX, float velocityY, float velocityZ);
 	[DllImport(DllName, CallingConvention = Convention, EntryPoint="get_linear_velocity")]
-	public static extern unsafe float3 GetLinearVelocity(RigidBodyHandle rbHandle);
+	public static extern unsafe float3 GetLinearVelocity(uint rbHandleIndex, uint rbHandleGeneration);
 	[DllImport(DllName, CallingConvention = Convention, EntryPoint="get_angular_velocity")]
-	public static extern unsafe float3 GetAngularVelocity(RigidBodyHandle rbHandle);
+	public static extern unsafe float3 GetAngularVelocity(uint rbHandleIndex, uint rbHandleGeneration);
 	[DllImport(DllName, CallingConvention = Convention, EntryPoint="enable_CCD")]
-	public static extern unsafe void EnableCCD(RigidBodyHandle rbHandle, bool enabled);
+	public static extern unsafe void EnableCCD(uint rbHandleIndex, uint rbHandleGeneration, bool enabled);
 	[DllImport(DllName, CallingConvention = Convention, EntryPoint="add_force")]
-	public static extern unsafe void AddForce(RigidBodyHandle rbHandle, float forceX, float forceY, float forceZ, ForceMode mode);
+	public static extern unsafe void AddForce(uint rbHandleIndex, uint rbHandleGeneration, float forceX, float forceY, float forceZ, ForceMode mode);
 	[DllImport(DllName, CallingConvention = Convention, EntryPoint="cast_ray")]
 	public static extern unsafe bool CastRay(float fromX, float fromY, float fromZ, float dirX, float dirY, float dirZ, RapierRaycastHit* outHit);
 #endif

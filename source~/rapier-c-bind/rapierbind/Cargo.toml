@@ -17,3 +17,6 @@ rustflags = [
     "-Clink-args=-Wl,-z,common-page-size=16384",
     "-Clink-args=-Wl,--script=./android_linker.ld"
 ]
+
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "target-feature=+multivalue"]

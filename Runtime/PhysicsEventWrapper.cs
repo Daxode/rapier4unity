@@ -135,13 +135,13 @@ public class RapierLoop
 	public static void AddForceWithMode(Rigidbody rigidbody, Vector3 force, ForceMode mode)
 	{
 		RigidBodyHandle handle = rigidbodyToHandle[rigidbody];
-		RapierBindings.AddForce(handle, force.x, force.y, force.z, mode);
+		// RapierBindings.AddForce(handle, force.x, force.y, force.z, mode);
 	}
 
 	public static void AddForce(Rigidbody rigidbody, Vector3 force)
 	{
 		RigidBodyHandle handle = rigidbodyToHandle[rigidbody];
-		RapierBindings.AddForce(handle, force.x, force.y, force.z, ForceMode.Force);
+		// RapierBindings.AddForce(handle, force.x, force.y, force.z, ForceMode.Force);
 	}
 
 
@@ -362,8 +362,8 @@ public class RapierLoop
 					trs.rotation.z,
 					trs.rotation.w);
 			}
-			if (rigidbody.collisionDetectionMode == CollisionDetectionMode.Continuous)
-				RapierBindings.EnableCCD(rigidbodyToHandle[rigidbody], true);
+			// if (rigidbody.collisionDetectionMode == CollisionDetectionMode.Continuous)
+			// 	RapierBindings.EnableCCD(rigidbodyToHandle[rigidbody], true);
 		}
 
 	}
@@ -438,8 +438,8 @@ public class RapierLoop
 		foreach (Rigidbody rigidbody in Object.FindObjectsByType<Rigidbody>(FindObjectsSortMode.None))
 		{
 			RigidBodyHandle handle = rigidbodyToHandle[rigidbody];
-			RapierTransform position = RapierBindings.GetTransform(handle);
-			rigidbody.transform.SetPositionAndRotation(position.position, position.rotation);
+			// RapierTransform position = RapierBindings.GetTransform(handle);
+			// rigidbody.transform.SetPositionAndRotation(position.position, position.rotation);
 		}
 
 		// Update fixed rigidbodies

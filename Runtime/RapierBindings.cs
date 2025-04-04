@@ -69,8 +69,8 @@ namespace Packages.rapier4unity.Runtime
 
 	public struct RigidBodyHandle
 	{
-		uint index;
-		uint generation;
+		internal uint index;
+		internal uint generation;
 
 		public override string ToString() => $"Index: {index}, Generation: {generation}";
 	}
