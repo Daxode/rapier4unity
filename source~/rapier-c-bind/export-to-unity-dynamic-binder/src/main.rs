@@ -41,7 +41,7 @@ fn main() -> Result<()> {
     let file = OpenOptions::new()
         .append(false)
         .write(true)
-        .open("../../Runtime/RapierBinds.cs")
+        .open(path)
         .or_else(|err| Err(err));
 
     let mut writer = BufWriter::new(file?);
