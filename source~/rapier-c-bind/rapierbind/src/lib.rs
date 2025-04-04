@@ -319,6 +319,18 @@ extern "C" fn set_rigid_body_constraints(rb_handle: SerializableRigidBodyHandle,
 }
 
 #[unsafe(no_mangle)]
+extern "C" fn set_rigid_body_drag(
+    rb_handle: SerializableRigidBodyHandle,
+    linear_drag: f32,
+    angular_drag: f32,
+) {
+    let psd = get_mutable_physics_solver();
+    let rb = psd.rigid_body_set.get_mut(rb_handle.into()).unwrap();
+    rb.set_linear_damping(linear_drag);
+    rb.set_angular_damping(angular_drag);
+}
+
+#[unsafe(no_mangle)]
 extern "C" fn add_fixed_joint(
     rb1_handle: SerializableRigidBodyHandle,
     rb2_handle: SerializableRigidBodyHandle,
@@ -622,6 +634,51 @@ extern "C" fn add_torque(
         }
     }
     rb.set_angvel(angvel, true);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn set_integration_parameters(
+    // Time step
+    dt: f32,
+    // Solver parameters
+    solver_iterations: usize,
+    solver_pgs_iterations: usize,
+    solver_additional_friction_iterations: usize,
+    solver_stabilization_iterations: usize,
+    ccd_substeps: usize,
+    // Damping parameters
+    contact_damping_ratio: f32,
+    joint_damping_ratio: f32,
+    // Frequency parameters
+    contact_frequency: f32,
+    joint_frequency: f32,
+    // Prediction parameters
+    prediction_distance: f32,
+    max_corrective_velocity: f32,
+    // Length unit
+    length_unit: f32,
+) {
+    use std::num::NonZeroUsize;
+
+    let psd = get_mutable_physics_solver();
+    psd.integration_parameters.dt = dt;
+    psd.integration_parameters.min_ccd_dt = dt / 100.0;
+    psd.integration_parameters.num_solver_iterations =
+        NonZeroUsize::new(solver_iterations as usize).unwrap_or(NonZeroUsize::new(4).unwrap());
+    psd.integration_parameters.num_internal_pgs_iterations = solver_pgs_iterations;
+    psd.integration_parameters
+        .num_additional_friction_iterations = solver_additional_friction_iterations;
+    psd.integration_parameters
+        .num_internal_stabilization_iterations = solver_stabilization_iterations;
+    psd.integration_parameters.max_ccd_substeps = ccd_substeps;
+    psd.integration_parameters.contact_damping_ratio = contact_damping_ratio;
+    psd.integration_parameters.joint_damping_ratio = joint_damping_ratio;
+    psd.integration_parameters.contact_natural_frequency = contact_frequency;
+    psd.integration_parameters.joint_natural_frequency = joint_frequency;
+    psd.integration_parameters.normalized_prediction_distance = prediction_distance;
+    psd.integration_parameters
+        .normalized_max_corrective_velocity = max_corrective_velocity;
+    psd.integration_parameters.length_unit = length_unit;
 }
 
 // Scene Query
