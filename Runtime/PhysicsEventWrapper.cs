@@ -578,11 +578,12 @@ public class RapierLoop
 	private static void UpdateRigidBody(Rigidbody rigidbody, RigidBodyHandle handle)
 	{
 		// TODO Determine what other kinds of properties might need to update per frame. 
-		// Set the various properties of the rigidbody (these are updated every frame, incase of changes)
-		RapierBindings.SetRigidBodyType(handle, rigidbody.isKinematic ? RigidBodyType.KinematicPositionBased : RigidBodyType.Dynamic);
-		RapierBindings.EnableCCD(handle, rigidbody.collisionDetectionMode == CollisionDetectionMode.Continuous);
-		RapierBindings.SetRigidBodyConstraints(handle, (uint)rigidbody.constraints);
-		RapierBindings.SetRigidBodyDrag(handle, rigidbody.linearDamping, rigidbody.angularDamping);
+		RapierBindings.UpdateRigidBodyProperties(handle,
+		rigidbody.isKinematic ? RigidBodyType.KinematicPositionBased : RigidBodyType.Dynamic,
+		rigidbody.collisionDetectionMode == CollisionDetectionMode.Continuous,
+		(uint)rigidbody.constraints,
+		rigidbody.linearDamping,
+		rigidbody.angularDamping);
 	}
 
 	// Called at the end of the FixedUpdate loop

@@ -287,45 +287,34 @@ extern "C" fn remove_rigid_body(rb_handle: SerializableRigidBodyHandle) {
 }
 
 #[unsafe(no_mangle)]
-extern "C" fn set_rigid_body_type(
+extern "C" fn update_rigid_body_properties(
     rb_handle: SerializableRigidBodyHandle,
     rb_type: SerializableRigidBodyType,
-) {
-    let psd = get_mutable_physics_solver();
-    let rb = psd.rigid_body_set.get_mut(rb_handle.into()).unwrap();
-    let rb_type: RigidBodyType = rb_type.into();
-
-    // If the body type is the same, do nothing
-    if rb.body_type() == rb_type {
-        return;
-    }
-
-    rb.set_body_type(rb_type, true);
-}
-
-#[unsafe(no_mangle)]
-extern "C" fn set_rigid_body_constraints(rb_handle: SerializableRigidBodyHandle, constraints: u32) {
-    let psd = get_mutable_physics_solver();
-    let rb = psd.rigid_body_set.get_mut(rb_handle.into()).unwrap();
-
-    // If the constraints are the same, do nothing
-    if locked_axes_to_unity_constraints(rb.locked_axes()) == constraints {
-        return;
-    }
-
-    let locks = unity_constraints_to_locked_axes(constraints);
-    rb.set_locked_axes(locks, false);
-    cancel_axis_velocity(locks, rb);
-}
-
-#[unsafe(no_mangle)]
-extern "C" fn set_rigid_body_drag(
-    rb_handle: SerializableRigidBodyHandle,
+    enable_ccd: bool,
+    constraints: u32,
     linear_drag: f32,
     angular_drag: f32,
 ) {
     let psd = get_mutable_physics_solver();
     let rb = psd.rigid_body_set.get_mut(rb_handle.into()).unwrap();
+
+    // Update body type if different
+    let rb_type_enum: RigidBodyType = rb_type.into();
+    if rb.body_type() != rb_type_enum {
+        rb.set_body_type(rb_type_enum, true);
+    }
+
+    // Set CCD
+    rb.enable_ccd(enable_ccd);
+
+    // Update constraints if different
+    if locked_axes_to_unity_constraints(rb.locked_axes()) != constraints {
+        let locks = unity_constraints_to_locked_axes(constraints);
+        rb.set_locked_axes(locks, false);
+        cancel_axis_velocity(locks, rb);
+    }
+
+    // Set drag values
     rb.set_linear_damping(linear_drag);
     rb.set_angular_damping(angular_drag);
 }
@@ -567,13 +556,6 @@ extern "C" fn get_angular_velocity(rb_handle: SerializableRigidBodyHandle) -> Ve
     let psd = get_mutable_physics_solver();
     let rb = psd.rigid_body_set.get(rb_handle.into()).unwrap();
     rb.angvel().clone()
-}
-
-#[unsafe(no_mangle)]
-extern "C" fn enable_CCD(rb_handle: SerializableRigidBodyHandle, enabled: bool) {
-    let psd = get_mutable_physics_solver();
-    let rb = psd.rigid_body_set.get_mut(rb_handle.into()).unwrap();
-    rb.enable_ccd(enabled);
 }
 
 // Add Force
